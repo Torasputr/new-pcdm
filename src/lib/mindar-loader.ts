@@ -3,6 +3,14 @@ export const MARKER_TARGET = "/markers/wheeloffortune.mind";
 const THREE_URL = "/lib/three.module.js";
 const MINDAR_URL = "/lib/mindar-image-three.prod.js";
 
+export type MindARThreeConfig = {
+  container: HTMLElement;
+  imageTargetSrc: string;
+  uiLoading?: "yes" | "no";
+  uiScanning?: "yes" | "no";
+  uiError?: "yes" | "no";
+};
+
 export type MindARThreeInstance = {
   addAnchor: (index: number) => {
     onTargetFound: (() => void) | null;
@@ -10,6 +18,7 @@ export type MindARThreeInstance = {
   };
   start: () => Promise<void>;
   stop: () => void;
+  resize: () => void;
   renderer: {
     render: (scene: unknown, camera: unknown) => void;
     setAnimationLoop: (cb: (() => void) | null) => void;
@@ -19,10 +28,7 @@ export type MindARThreeInstance = {
 };
 
 type MindARModules = {
-  MindARThree: new (config: {
-    container: HTMLElement;
-    imageTargetSrc: string;
-  }) => MindARThreeInstance;
+  MindARThree: new (config: MindARThreeConfig) => MindARThreeInstance;
 };
 
 let modulesPromise: Promise<MindARModules> | null = null;

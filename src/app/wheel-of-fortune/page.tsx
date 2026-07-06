@@ -61,6 +61,9 @@ export default function WheelOfFortunePage() {
       const mindarThree = new MindARThree({
         container,
         imageTargetSrc: MARKER_TARGET,
+        uiLoading: "no",
+        uiScanning: "no",
+        uiError: "no",
       });
 
       mindarRef.current = mindarThree;
@@ -78,6 +81,10 @@ export default function WheelOfFortunePage() {
       });
 
       setStatus("scanning");
+
+      requestAnimationFrame(() => {
+        mindarRef.current?.resize();
+      });
     } catch (err) {
       console.error(err);
       stopScanner();
@@ -93,11 +100,13 @@ export default function WheelOfFortunePage() {
   }, [stopScanner]);
 
   return (
-    <main className="relative min-h-screen bg-black text-white">
+    <main className="relative min-h-[100dvh] bg-black text-white">
       {/* MindAR draws the camera feed inside this div */}
       <div
         ref={containerRef}
-        className={`fixed inset-0 ${status === "scanning" ? "z-0" : "-z-10"}`}
+        className={`fixed inset-0 h-[100dvh] w-full overflow-hidden ${
+          status === "scanning" ? "z-0" : "-z-10"
+        }`}
       />
 
       {status !== "scanning" && (
