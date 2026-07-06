@@ -1,91 +1,110 @@
 "use client";
 
+import { loadMindARModules, MARKER_TARGET } from "@/lib/mindar-loader";
+import type { MindARThreeInstance } from "@/lib/mindar-loader";
 import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
 
-type Status = "idle" | "starting" | "running" | "error";
+type Status = "idle" | "loading" | "scanning" | "error";
 
 export default function WheelOfFortunePage() {
-  const videoRef = useRef<HTMLVideoElement>(null);
-  const streamRef = useRef<MediaStream | null>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const mindarRef = useRef<MindARThreeInstance | null>(null);
 
   const [status, setStatus] = useState<Status>("idle");
   const [error, setError] = useState<string | null>(null);
+  const [targetFound, setTargetFound] = useState(false);
+  const [scriptsReady, setScriptsReady] = useState(false);
 
-  const stopCamera = useCallback(() => {
-    streamRef.current?.getTracks().forEach((track) => track.stop());
-    streamRef.current = null;
-
-    if (videoRef.current) {
-      videoRef.current.srcObject = null;
-    }
+  // Preload MindAR scripts (no camera yet)
+  useEffect(() => {
+    loadMindARModules()
+      .then(() => setScriptsReady(true))
+      .catch(() => {
+        setError("Failed to load AR engine. Refresh and try again.");
+        setStatus("error");
+      });
   }, []);
 
-  const openCamera = useCallback(async () => {
-    setError(null);
-    setStatus("starting");
+  const stopScanner = useCallback(() => {
+    const mindar = mindarRef.current;
+    if (mindar) {
+      mindar.renderer.setAnimationLoop(null);
+      mindar.stop();
+      mindarRef.current = null;
+    }
+    setTargetFound(false);
+    setStatus("idle");
+  }, []);
 
-    if (!navigator.mediaDevices?.getUserMedia) {
-      setError("Camera is not supported in this browser.");
+  const openScanner = useCallback(async () => {
+    setError(null);
+    setTargetFound(false);
+    setStatus("loading");
+
+    const container = containerRef.current;
+    if (!container) {
+      setError("Scanner container not found.");
       setStatus("error");
       return;
     }
 
     if (!window.isSecureContext && window.location.hostname !== "localhost") {
-      setError("Camera needs HTTPS. Use your ngrok https link on mobile.");
+      setError("Camera needs HTTPS. Use your ngrok link on mobile.");
       setStatus("error");
       return;
     }
 
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: {
-          facingMode: { ideal: "environment" }, // back camera on phones
-        },
-        audio: false,
+      const { MindARThree } = await loadMindARModules();
+
+      const mindarThree = new MindARThree({
+        container,
+        imageTargetSrc: MARKER_TARGET,
       });
 
-      streamRef.current = stream;
+      mindarRef.current = mindarThree;
 
-      const video = videoRef.current;
-      if (!video) {
-        throw new Error("Video element not found.");
-      }
+      const anchor = mindarThree.addAnchor(0);
+      anchor.onTargetFound = () => setTargetFound(true);
+      anchor.onTargetLost = () => setTargetFound(false);
 
-      video.srcObject = stream;
-      await video.play();
+      // Must run from button tap (mobile camera rule)
+      await mindarThree.start();
 
-      setStatus("running");
+      const { renderer, scene, camera } = mindarThree;
+      renderer.setAnimationLoop(() => {
+        renderer.render(scene, camera);
+      });
+
+      setStatus("scanning");
     } catch (err) {
       console.error(err);
-      stopCamera();
+      stopScanner();
       setError(
-        "Could not open camera. Allow camera access, then tap Open camera again.",
+        "Could not start scanner. Allow camera access and try again.",
       );
       setStatus("error");
     }
-  }, [stopCamera]);
+  }, [stopScanner]);
 
   useEffect(() => {
-    return () => stopCamera();
-  }, [stopCamera]);
+    return () => stopScanner();
+  }, [stopScanner]);
 
   return (
     <main className="relative min-h-screen bg-black text-white">
-      <video
-        ref={videoRef}
-        playsInline
-        muted
-        className={`fixed inset-0 h-full w-full object-cover ${
-          status === "running" ? "block" : "hidden"
-        }`}
+      {/* MindAR draws the camera feed inside this div */}
+      <div
+        ref={containerRef}
+        className={`fixed inset-0 ${status === "scanning" ? "z-0" : "-z-10"}`}
       />
 
-      {status !== "running" && (
+      {status !== "scanning" && (
         <div className="relative z-10 flex min-h-screen flex-col items-center justify-center gap-6 px-6 text-center">
           <h1 className="text-2xl font-bold">Wheel of Fortune</h1>
           <p className="max-w-sm text-zinc-400">
-            Tap below to open your phone camera.
+            Point your camera at the Wheel of Fortune card.
           </p>
 
           {error && (
@@ -96,11 +115,15 @@ export default function WheelOfFortunePage() {
 
           <button
             type="button"
-            onClick={openCamera}
-            disabled={status === "starting"}
+            onClick={openScanner}
+            disabled={status === "loading" || !scriptsReady}
             className="rounded-full bg-emerald-500 px-8 py-4 font-semibold text-zinc-950 transition hover:bg-emerald-400 disabled:opacity-50"
           >
-            {status === "starting" ? "Opening camera…" : "Open camera"}
+            {!scriptsReady
+              ? "Loading AR…"
+              : status === "loading"
+                ? "Opening camera…"
+                : "Open camera"}
           </button>
 
           <Link href="/" className="text-sm text-zinc-500 underline">
@@ -109,26 +132,33 @@ export default function WheelOfFortunePage() {
         </div>
       )}
 
-      {status === "running" && (
+      {status === "scanning" && (
         <>
           <div className="fixed top-0 right-0 left-0 z-20 bg-black/50 px-4 py-3 text-center text-sm">
-            Camera is on — AR scanning comes next
+            {targetFound
+              ? "Object found!"
+              : "Scanning… point at the marker"}
           </div>
+
+          {targetFound && (
+            <div className="fixed inset-0 z-20 flex items-center justify-center pointer-events-none">
+              <div className="rounded-2xl bg-emerald-500 px-8 py-4 text-xl font-bold text-zinc-950 shadow-lg">
+                Object found!
+              </div>
+            </div>
+          )}
 
           <button
             type="button"
-            onClick={() => {
-              stopCamera();
-              setStatus("idle");
-            }}
-            className="fixed bottom-6 left-1/2 z-20 -translate-x-1/2 rounded-full bg-black/70 px-6 py-3 text-sm text-white"
+            onClick={stopScanner}
+            className="fixed bottom-6 left-1/2 z-30 -translate-x-1/2 rounded-full bg-black/70 px-6 py-3 text-sm text-white"
           >
-            Close camera
+            Close scanner
           </button>
 
           <Link
             href="/"
-            className="fixed top-4 left-4 z-20 rounded-full bg-black/60 px-4 py-2 text-sm text-white backdrop-blur"
+            className="fixed top-4 left-4 z-30 rounded-full bg-black/60 px-4 py-2 text-sm text-white backdrop-blur"
           >
             ← Back
           </Link>
