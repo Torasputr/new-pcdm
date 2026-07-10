@@ -1,6 +1,8 @@
 "use client";
 
 import {
+  addARLights,
+  brightenModelMaterials,
   loadMindARModules,
   loadThreeAndGLTF,
   MARKER_TARGET,
@@ -83,8 +85,7 @@ export default function WheelOfFortunePage() {
       anchor.onTargetFound = () => setTargetFound(true);
       anchor.onTargetLost = () => setTargetFound(false);
 
-      const light = new THREE.HemisphereLight(0xffffff, 0xbbbbff, 1);
-      (mindarThree.scene as import("three").Scene).add(light);
+      addARLights(THREE, mindarThree.scene as { add: (...o: object[]) => void });
 
       const loader = new GLTFLoader();
       loader.load(
@@ -93,6 +94,8 @@ export default function WheelOfFortunePage() {
           gltf.scene.scale.set(0.3, 0.3, 0.3);
           gltf.scene.position.set(0, 0, 0);
           gltf.scene.rotation.set(0, 0, 0);
+
+          brightenModelMaterials(gltf.scene);
           anchor.group.add(gltf.scene);
 
           if (gltf.animations.length > 0) {
