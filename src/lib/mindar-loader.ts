@@ -47,10 +47,17 @@ export type ThreeRuntime = {
     position: { set: (x: number, y: number, z: number) => void };
   };
   AnimationMixer: new (root: object) => {
-    clipAction: (clip: object) => { play: () => void };
+    clipAction: (clip: object) => AnimationActionRuntime;
+    stopAllAction: () => void;
     update: (dt: number) => void;
   };
   Clock: new () => { getDelta: () => number };
+};
+
+export type AnimationActionRuntime = {
+  play: () => void;
+  reset: () => void;
+  stop: () => void;
 };
 
 export type GLTFResult = {

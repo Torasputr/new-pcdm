@@ -100,9 +100,20 @@ export default function WheelOfFortunePage() {
 
           if (gltf.animations.length > 0) {
             const mixer = new THREE.AnimationMixer(gltf.scene);
-            mixer.clipAction(gltf.animations[0]).play();
+            const action = mixer.clipAction(gltf.animations[0]);
             mixerRef.current = mixer;
             clockRef.current = new THREE.Clock();
+
+            anchor.onTargetFound = () => {
+              setTargetFound(true);
+              action.reset();
+              action.play();
+            };
+
+            anchor.onTargetLost = () => {
+              setTargetFound(false);
+              action.stop();
+            };
           }
         },
         undefined,
@@ -187,7 +198,7 @@ export default function WheelOfFortunePage() {
         <>
           <div className="fixed top-0 right-0 left-0 z-20 bg-black/50 px-4 py-3 text-center text-sm">
             {targetFound
-              ? "Marker found — look at the 3D model"
+              ? "Marker found — animation playing"
               : "Scanning… point at the marker"}
           </div>
 
