@@ -1,4 +1,4 @@
-export const MARKER_TARGET = "/markers/wheeloffortune.mind";
+export const MARKER_TARGET = "/markers/maddy.mind";
 
 const THREE_URL = "/lib/three.module.js";
 const MINDAR_URL = "/lib/mindar-image-three.prod.js";

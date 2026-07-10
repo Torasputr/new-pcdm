@@ -1,7 +1,7 @@
 import Image from "next/image";
 import Link from "next/link";
 
-const MARKER_IMAGE = "/markers/wheelofortune.jpg";
+const MARKER_IMAGE = "/markers/maddy.png";
 
 export default function HomePage() {
   return (
