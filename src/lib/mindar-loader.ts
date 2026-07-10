@@ -1,7 +1,9 @@
 export const MARKER_TARGET = "/markers/maddy.mind";
+export const MODEL = "/models/wheeloffortune.glb";
 
 const THREE_URL = "/lib/three.module.js";
 const MINDAR_URL = "/lib/mindar-image-three.prod.js";
+const GLTF_LOADER_URL = "/lib/addons/loaders/GLTFLoader.js";
 
 export type MindARThreeConfig = {
   container: HTMLElement;
@@ -11,11 +13,14 @@ export type MindARThreeConfig = {
   uiError?: "yes" | "no";
 };
 
+export type MindARAnchor = {
+  group: { add: (obj: unknown) => void };
+  onTargetFound: (() => void) | null;
+  onTargetLost: (() => void) | null;
+};
+
 export type MindARThreeInstance = {
-  addAnchor: (index: number) => {
-    onTargetFound: (() => void) | null;
-    onTargetLost: (() => void) | null;
-  };
+  addAnchor: (index: number) => MindARAnchor;
   start: () => Promise<void>;
   stop: () => void;
   resize: () => void;
@@ -30,6 +35,9 @@ export type MindARThreeInstance = {
 type MindARModules = {
   MindARThree: new (config: MindARThreeConfig) => MindARThreeInstance;
 };
+
+type ThreeModule = typeof import("three");
+type GLTFLoaderModule = typeof import("three/addons/loaders/GLTFLoader.js");
 
 let modulesPromise: Promise<MindARModules> | null = null;
 
@@ -50,4 +58,19 @@ export async function loadMindARModules(): Promise<MindARModules> {
   }
 
   return modulesPromise;
+}
+
+export async function loadThreeAndGLTF(): Promise<{
+  THREE: ThreeModule;
+  GLTFLoader: GLTFLoaderModule["GLTFLoader"];
+}> {
+  const THREE = (await import(
+    /* webpackIgnore: true */ THREE_URL
+  )) as ThreeModule;
+
+  const { GLTFLoader } = (await import(
+    /* webpackIgnore: true */ GLTF_LOADER_URL
+  )) as GLTFLoaderModule;
+
+  return { THREE, GLTFLoader };
 }

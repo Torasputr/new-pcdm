@@ -1,6 +1,11 @@
 "use client";
 
-import { loadMindARModules, MARKER_TARGET } from "@/lib/mindar-loader";
+import {
+  loadMindARModules,
+  loadThreeAndGLTF,
+  MARKER_TARGET,
+  MODEL,
+} from "@/lib/mindar-loader";
 import type { MindARThreeInstance } from "@/lib/mindar-loader";
 import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -10,13 +15,14 @@ type Status = "idle" | "loading" | "scanning" | "error";
 export default function WheelOfFortunePage() {
   const containerRef = useRef<HTMLDivElement>(null);
   const mindarRef = useRef<MindARThreeInstance | null>(null);
+  const mixerRef = useRef<{ update: (dt: number) => void } | null>(null);
+  const clockRef = useRef<{ getDelta: () => number } | null>(null);
 
   const [status, setStatus] = useState<Status>("idle");
   const [error, setError] = useState<string | null>(null);
   const [targetFound, setTargetFound] = useState(false);
   const [scriptsReady, setScriptsReady] = useState(false);
 
-  // Preload MindAR scripts (no camera yet)
   useEffect(() => {
     loadMindARModules()
       .then(() => setScriptsReady(true))
@@ -33,6 +39,8 @@ export default function WheelOfFortunePage() {
       mindar.stop();
       mindarRef.current = null;
     }
+    mixerRef.current = null;
+    clockRef.current = null;
     setTargetFound(false);
     setStatus("idle");
   }, []);
@@ -50,13 +58,16 @@ export default function WheelOfFortunePage() {
     }
 
     if (!window.isSecureContext && window.location.hostname !== "localhost") {
-      setError("Camera needs HTTPS. Use your ngrok link on mobile.");
+      setError("Camera needs HTTPS. Use your ngrok or Vercel link on mobile.");
       setStatus("error");
       return;
     }
 
     try {
-      const { MindARThree } = await loadMindARModules();
+      const [{ MindARThree }, { THREE, GLTFLoader }] = await Promise.all([
+        loadMindARModules(),
+        loadThreeAndGLTF(),
+      ]);
 
       const mindarThree = new MindARThree({
         container,
@@ -72,11 +83,40 @@ export default function WheelOfFortunePage() {
       anchor.onTargetFound = () => setTargetFound(true);
       anchor.onTargetLost = () => setTargetFound(false);
 
-      // Must run from button tap (mobile camera rule)
+      const light = new THREE.HemisphereLight(0xffffff, 0xbbbbff, 1);
+      (mindarThree.scene as import("three").Scene).add(light);
+
+      const loader = new GLTFLoader();
+      loader.load(
+        MODEL,
+        (gltf) => {
+          gltf.scene.scale.set(0.3, 0.3, 0.3);
+          gltf.scene.position.set(0, 0, 0);
+          gltf.scene.rotation.set(0, 0, 0);
+          anchor.group.add(gltf.scene);
+
+          if (gltf.animations.length > 0) {
+            const mixer = new THREE.AnimationMixer(gltf.scene);
+            mixer.clipAction(gltf.animations[0]).play();
+            mixerRef.current = mixer;
+            clockRef.current = new THREE.Clock();
+          }
+        },
+        undefined,
+        (err) => {
+          console.error("GLB load failed:", err);
+          setError("Failed to load 3D model.");
+          setStatus("error");
+        },
+      );
+
       await mindarThree.start();
 
       const { renderer, scene, camera } = mindarThree;
       renderer.setAnimationLoop(() => {
+        const mixer = mixerRef.current;
+        const clock = clockRef.current;
+        if (mixer && clock) mixer.update(clock.getDelta());
         renderer.render(scene, camera);
       });
 
@@ -101,7 +141,6 @@ export default function WheelOfFortunePage() {
 
   return (
     <main className="relative min-h-[100dvh] bg-black text-white">
-      {/* MindAR draws the camera feed inside this div */}
       <div
         ref={containerRef}
         className={`fixed inset-0 h-[100dvh] w-full overflow-hidden ${
@@ -113,7 +152,7 @@ export default function WheelOfFortunePage() {
         <div className="relative z-10 flex min-h-screen flex-col items-center justify-center gap-6 px-6 text-center">
           <h1 className="text-2xl font-bold">Wheel of Fortune</h1>
           <p className="max-w-sm text-zinc-400">
-            Point your camera at the Wheel of Fortune card.
+            Point your camera at the marker to see the 3D animation.
           </p>
 
           {error && (
@@ -145,17 +184,9 @@ export default function WheelOfFortunePage() {
         <>
           <div className="fixed top-0 right-0 left-0 z-20 bg-black/50 px-4 py-3 text-center text-sm">
             {targetFound
-              ? "Object found!"
+              ? "Marker found — look at the 3D model"
               : "Scanning… point at the marker"}
           </div>
-
-          {targetFound && (
-            <div className="fixed inset-0 z-20 flex items-center justify-center pointer-events-none">
-              <div className="rounded-2xl bg-emerald-500 px-8 py-4 text-xl font-bold text-zinc-950 shadow-lg">
-                Object found!
-              </div>
-            </div>
-          )}
 
           <button
             type="button"
