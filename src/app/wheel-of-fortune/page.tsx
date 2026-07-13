@@ -16,6 +16,8 @@ import { useCallback, useEffect, useRef, useState } from "react";
 type Status = "idle" | "loading" | "scanning" | "error";
 
 const SPIN_SPEED = 0.04;
+/** Bump this down once the model size looks right in AR. */
+const MODEL_SCALE = 10;
 
 export default function WheelOfFortunePage() {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -124,7 +126,7 @@ export default function WheelOfFortunePage() {
       loader.load(
         MODEL,
         (gltf) => {
-          gltf.scene.scale.set(0.3, 0.3, 0.3);
+          gltf.scene.scale.set(MODEL_SCALE, MODEL_SCALE, MODEL_SCALE);
           gltf.scene.position.set(0, 0, 0);
           gltf.scene.rotation.set(0, 0, 0);
 
