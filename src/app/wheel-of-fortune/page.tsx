@@ -10,6 +10,10 @@ import {
   MARKER_TARGET,
   MODEL,
 } from "@/lib/mindar-loader";
+import {
+  applyArModelTransform,
+  loadArModelTransform,
+} from "@/lib/ar-model-config";
 import type {
   AnimationController,
   MindARThreeInstance,
@@ -20,8 +24,6 @@ import { useCallback, useEffect, useRef, useState } from "react";
 type Status = "idle" | "loading" | "scanning" | "error";
 
 const SPIN_SPEED = 0.04;
-/** Bump this down once the model size looks right in AR. */
-const MODEL_SCALE = 20;
 
 export default function WheelOfFortunePage() {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -126,13 +128,13 @@ export default function WheelOfFortunePage() {
 
       addARLights(THREE, mindarThree.scene as { add: (...o: object[]) => void });
 
+      const modelTransform = loadArModelTransform();
+
       const loader = new GLTFLoader();
       loader.load(
         MODEL,
         (gltf) => {
-          gltf.scene.scale.set(MODEL_SCALE, MODEL_SCALE, MODEL_SCALE);
-          gltf.scene.position.set(0, 0, 0);
-          gltf.scene.rotation.set(0, 0, 0);
+          applyArModelTransform(gltf.scene, modelTransform);
 
           brightenModelMaterials(gltf.scene);
           anchor.group.add(gltf.scene);
@@ -261,6 +263,10 @@ export default function WheelOfFortunePage() {
                 ? "Opening camera…"
                 : "Open camera"}
           </button>
+
+          <Link href="/manage" className="text-sm text-zinc-500 underline">
+            Adjust model size &amp; position
+          </Link>
 
           <Link href="/" className="text-sm text-zinc-500 underline">
             Back to home

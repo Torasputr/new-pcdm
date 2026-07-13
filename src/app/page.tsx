@@ -22,6 +22,12 @@ export default function HomePage() {
         >
           Wheel of Fortune Demo
         </Link>
+        <Link
+          href="/manage"
+          className="text-sm text-zinc-500 underline"
+        >
+          Manage model position &amp; size
+        </Link>
       </section>
 
       <section className="border-t border-zinc-800 px-6 py-12">
