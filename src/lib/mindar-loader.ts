@@ -227,3 +227,40 @@ export function addARLights(
   dir.position.set(1, 2, 1);
   scene.add(ambient, hemi, dir);
 }
+
+/** Keeps MindAR video/canvas aligned to the container on all mobile viewports. */
+export function bindMindARResize(
+  mindar: MindARThreeInstance,
+  container: HTMLElement,
+): () => void {
+  const resize = () => {
+    if (container.clientWidth > 0 && container.clientHeight > 0) {
+      mindar.resize();
+    }
+  };
+
+  const observer = new ResizeObserver(resize);
+  observer.observe(container);
+
+  window.addEventListener("resize", resize);
+  window.addEventListener("orientationchange", resize);
+  window.visualViewport?.addEventListener("resize", resize);
+  window.visualViewport?.addEventListener("scroll", resize);
+
+  resize();
+  requestAnimationFrame(resize);
+  const retryTimers = [100, 300, 600, 1000].map((ms) =>
+    window.setTimeout(resize, ms),
+  );
+
+  return () => {
+    observer.disconnect();
+    window.removeEventListener("resize", resize);
+    window.removeEventListener("orientationchange", resize);
+    window.visualViewport?.removeEventListener("resize", resize);
+    window.visualViewport?.removeEventListener("scroll", resize);
+    for (const id of retryTimers) {
+      window.clearTimeout(id);
+    }
+  };
+}

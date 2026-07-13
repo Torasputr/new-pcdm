@@ -2,6 +2,7 @@
 
 import {
   addARLights,
+  bindMindARResize,
   brightenModelMaterials,
   createAnimationController,
   findSpinTargets,
@@ -35,6 +36,7 @@ export default function WheelOfFortunePage() {
   const stopAnimationRef = useRef<(() => void) | null>(null);
   const spinTargetsRef = useRef<Array<{ rotation: { y: number } }>>([]);
   const isSpinningRef = useRef(false);
+  const unbindResizeRef = useRef<(() => void) | null>(null);
 
   const [status, setStatus] = useState<Status>("idle");
   const [error, setError] = useState<string | null>(null);
@@ -53,6 +55,10 @@ export default function WheelOfFortunePage() {
   }, []);
 
   const stopScanner = useCallback(() => {
+    unbindResizeRef.current?.();
+    unbindResizeRef.current = null;
+    document.documentElement.classList.remove("ar-active");
+
     const mindar = mindarRef.current;
     if (mindar) {
       mindar.renderer.setAnimationLoop(null);
@@ -83,6 +89,7 @@ export default function WheelOfFortunePage() {
     spinTargetsRef.current = [];
     isSpinningRef.current = false;
     setStatus("loading");
+    document.documentElement.classList.add("ar-active");
 
     const container = containerRef.current;
     if (!container) {
@@ -193,6 +200,9 @@ export default function WheelOfFortunePage() {
 
       await mindarThree.start();
 
+      document.documentElement.classList.add("ar-active");
+      unbindResizeRef.current = bindMindARResize(mindarThree, container);
+
       const { renderer, scene, camera } = mindarThree;
       renderer.setAnimationLoop(() => {
         const controller = mixerRef.current;
@@ -211,10 +221,6 @@ export default function WheelOfFortunePage() {
       });
 
       setStatus("scanning");
-
-      requestAnimationFrame(() => {
-        mindarRef.current?.resize();
-      });
     } catch (err) {
       console.error(err);
       stopScanner();
@@ -230,11 +236,15 @@ export default function WheelOfFortunePage() {
   }, [stopScanner]);
 
   return (
-    <main className="relative min-h-[100dvh] bg-black text-white">
+    <main
+      className={`bg-black text-white ${
+        status === "scanning" ? "fixed inset-0 overflow-hidden" : "relative min-h-[100dvh]"
+      }`}
+    >
       <div
         ref={containerRef}
-        className={`fixed inset-0 h-[100dvh] w-full overflow-hidden ${
-          status === "scanning" ? "z-0" : "-z-10"
+        className={`ar-scanner-container ${
+          status === "scanning" || status === "loading" ? "z-0" : "-z-10"
         }`}
       />
 
