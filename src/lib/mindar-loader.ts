@@ -1,5 +1,5 @@
 export const MARKER_TARGET = "/markers/maddy.mind";
-export const MODEL = "/models/wheeloffortune.glb";
+export const MODEL = "/models/Loop.glb";
 
 const THREE_URL = "/lib/three.module.js";
 const MINDAR_URL = "/lib/mindar-image-three.prod.js";
@@ -52,19 +52,40 @@ export type ThreeRuntime = {
     update: (dt: number) => void;
   };
   Clock: new () => { getDelta: () => number };
+  LoopRepeat: number;
 };
 
 export type AnimationActionRuntime = {
   play: () => void;
   reset: () => void;
   stop: () => void;
+  setLoop: (mode: number, repetitions: number) => void;
 };
+
+type RotatableNode = { rotation: { y: number } };
+
+export function findSpinTargets(scene: {
+  traverse: (fn: (child: object) => void) => void;
+  rotation: { y: number };
+}): RotatableNode[] {
+  const targets: RotatableNode[] = [];
+
+  scene.traverse((child) => {
+    const node = child as { name?: string; rotation?: { y: number } };
+    if (!node.name || !node.rotation) return;
+    if (/disc|wheel/i.test(node.name)) {
+      targets.push({ rotation: node.rotation });
+    }
+  });
+
+  return targets.length > 0 ? targets : [scene];
+}
 
 export type GLTFResult = {
   scene: {
     scale: { set: (x: number, y: number, z: number) => void };
     position: { set: (x: number, y: number, z: number) => void };
-    rotation: { set: (x: number, y: number, z: number) => void };
+    rotation: { set: (x: number, y: number, z: number) => void; y: number };
     traverse: (fn: (child: object) => void) => void;
   };
   animations: object[];

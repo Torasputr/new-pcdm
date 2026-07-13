@@ -3,6 +3,7 @@
 import {
   addARLights,
   brightenModelMaterials,
+  findSpinTargets,
   loadMindARModules,
   loadThreeAndGLTF,
   MARKER_TARGET,
@@ -14,15 +15,24 @@ import { useCallback, useEffect, useRef, useState } from "react";
 
 type Status = "idle" | "loading" | "scanning" | "error";
 
+const SPIN_SPEED = 0.04;
+
 export default function WheelOfFortunePage() {
   const containerRef = useRef<HTMLDivElement>(null);
   const mindarRef = useRef<MindARThreeInstance | null>(null);
   const mixerRef = useRef<{ update: (dt: number) => void } | null>(null);
   const clockRef = useRef<{ getDelta: () => number } | null>(null);
+  const markerVisibleRef = useRef(false);
+  const playAnimationRef = useRef<(() => void) | null>(null);
+  const stopAnimationRef = useRef<(() => void) | null>(null);
+  const spinTargetsRef = useRef<Array<{ rotation: { y: number } }>>([]);
+  const isSpinningRef = useRef(false);
 
   const [status, setStatus] = useState<Status>("idle");
   const [error, setError] = useState<string | null>(null);
   const [targetFound, setTargetFound] = useState(false);
+  const [animationStarted, setAnimationStarted] = useState(false);
+  const [modelStatus, setModelStatus] = useState<string | null>(null);
   const [scriptsReady, setScriptsReady] = useState(false);
 
   useEffect(() => {
@@ -43,13 +53,27 @@ export default function WheelOfFortunePage() {
     }
     mixerRef.current = null;
     clockRef.current = null;
+    markerVisibleRef.current = false;
+    playAnimationRef.current = null;
+    stopAnimationRef.current = null;
+    spinTargetsRef.current = [];
+    isSpinningRef.current = false;
     setTargetFound(false);
+    setAnimationStarted(false);
+    setModelStatus(null);
     setStatus("idle");
   }, []);
 
   const openScanner = useCallback(async () => {
     setError(null);
     setTargetFound(false);
+    setAnimationStarted(false);
+    setModelStatus(null);
+    markerVisibleRef.current = false;
+    playAnimationRef.current = null;
+    stopAnimationRef.current = null;
+    spinTargetsRef.current = [];
+    isSpinningRef.current = false;
     setStatus("loading");
 
     const container = containerRef.current;
@@ -82,8 +106,17 @@ export default function WheelOfFortunePage() {
       mindarRef.current = mindarThree;
 
       const anchor = mindarThree.addAnchor(0);
-      anchor.onTargetFound = () => setTargetFound(true);
-      anchor.onTargetLost = () => setTargetFound(false);
+      anchor.onTargetFound = () => {
+        markerVisibleRef.current = true;
+        setTargetFound(true);
+        playAnimationRef.current?.();
+      };
+      anchor.onTargetLost = () => {
+        markerVisibleRef.current = false;
+        setTargetFound(false);
+        setAnimationStarted(false);
+        stopAnimationRef.current?.();
+      };
 
       addARLights(THREE, mindarThree.scene as { add: (...o: object[]) => void });
 
@@ -99,21 +132,43 @@ export default function WheelOfFortunePage() {
           anchor.group.add(gltf.scene);
 
           if (gltf.animations.length > 0) {
+            setModelStatus(
+              `Model ready — ${gltf.animations.length} animation clip(s)`,
+            );
+
             const mixer = new THREE.AnimationMixer(gltf.scene);
             const action = mixer.clipAction(gltf.animations[0]);
+            action.setLoop(THREE.LoopRepeat, Infinity);
             mixerRef.current = mixer;
             clockRef.current = new THREE.Clock();
 
-            anchor.onTargetFound = () => {
-              setTargetFound(true);
+            playAnimationRef.current = () => {
               action.reset();
               action.play();
+              setAnimationStarted(true);
             };
-
-            anchor.onTargetLost = () => {
-              setTargetFound(false);
+            stopAnimationRef.current = () => {
               action.stop();
+              setAnimationStarted(false);
             };
+          } else {
+            setModelStatus(
+              "Model ready — no baked clips, spinning wheel parts instead",
+            );
+            spinTargetsRef.current = findSpinTargets(gltf.scene);
+
+            playAnimationRef.current = () => {
+              isSpinningRef.current = true;
+              setAnimationStarted(true);
+            };
+            stopAnimationRef.current = () => {
+              isSpinningRef.current = false;
+              setAnimationStarted(false);
+            };
+          }
+
+          if (markerVisibleRef.current) {
+            playAnimationRef.current();
           }
         },
         undefined,
@@ -130,7 +185,16 @@ export default function WheelOfFortunePage() {
       renderer.setAnimationLoop(() => {
         const mixer = mixerRef.current;
         const clock = clockRef.current;
-        if (mixer && clock) mixer.update(clock.getDelta());
+        if (mixer && clock) {
+          mixer.update(clock.getDelta());
+        }
+
+        if (isSpinningRef.current) {
+          for (const target of spinTargetsRef.current) {
+            target.rotation.y += SPIN_SPEED;
+          }
+        }
+
         renderer.render(scene, camera);
       });
 
@@ -196,10 +260,19 @@ export default function WheelOfFortunePage() {
 
       {status === "scanning" && (
         <>
-          <div className="fixed top-0 right-0 left-0 z-20 bg-black/50 px-4 py-3 text-center text-sm">
-            {targetFound
-              ? "Marker found — animation playing"
-              : "Scanning… point at the marker"}
+          <div className="fixed top-0 right-0 left-0 z-20 space-y-1 bg-black/50 px-4 py-3 text-center text-sm">
+            {animationStarted ? (
+              <p className="font-semibold text-emerald-300">
+                Animation has started
+              </p>
+            ) : targetFound ? (
+              <p>Marker found — starting animation…</p>
+            ) : (
+              <p>Scanning… point at the marker</p>
+            )}
+            {modelStatus && (
+              <p className="text-xs text-zinc-400">{modelStatus}</p>
+            )}
           </div>
 
           <button
