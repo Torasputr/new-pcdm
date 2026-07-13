@@ -178,7 +178,7 @@ export default function WheelOfFortunePage() {
           }
 
           if (markerVisibleRef.current) {
-            playAnimationRef.current();
+            playAnimationRef.current?.();
           }
         },
         undefined,
