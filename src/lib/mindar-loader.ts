@@ -62,6 +62,51 @@ export type AnimationActionRuntime = {
   setLoop: (mode: number, repetitions: number) => void;
 };
 
+export type AnimationClipRuntime = { name?: string };
+
+export type AnimationController = {
+  clipSummary: string;
+  play: () => void;
+  stop: () => void;
+  update: (dt: number) => void;
+};
+
+export function createAnimationController(
+  THREE: ThreeRuntime,
+  root: object,
+  clips: AnimationClipRuntime[],
+): AnimationController | null {
+  if (clips.length === 0) return null;
+
+  const mixer = new THREE.AnimationMixer(root);
+  const actions = clips.map((clip) => {
+    const action = mixer.clipAction(clip);
+    action.setLoop(THREE.LoopRepeat, Infinity);
+    return action;
+  });
+
+  const clipSummary = clips
+    .map((clip, index) => clip.name?.trim() || `clip ${index + 1}`)
+    .join(", ");
+
+  return {
+    clipSummary,
+    play() {
+      for (const action of actions) {
+        action.reset();
+        action.play();
+      }
+      mixer.update(0);
+    },
+    stop() {
+      mixer.stopAllAction();
+    },
+    update(dt: number) {
+      mixer.update(dt);
+    },
+  };
+}
+
 type RotatableNode = { rotation: { y: number } };
 
 export function findSpinTargets(scene: {
@@ -88,7 +133,7 @@ export type GLTFResult = {
     rotation: { set: (x: number, y: number, z: number) => void; y: number };
     traverse: (fn: (child: object) => void) => void;
   };
-  animations: object[];
+  animations: AnimationClipRuntime[];
 };
 
 export type GLTFLoaderRuntime = new () => {

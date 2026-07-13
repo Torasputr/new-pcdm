@@ -3,13 +3,17 @@
 import {
   addARLights,
   brightenModelMaterials,
+  createAnimationController,
   findSpinTargets,
   loadMindARModules,
   loadThreeAndGLTF,
   MARKER_TARGET,
   MODEL,
 } from "@/lib/mindar-loader";
-import type { MindARThreeInstance } from "@/lib/mindar-loader";
+import type {
+  AnimationController,
+  MindARThreeInstance,
+} from "@/lib/mindar-loader";
 import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
 
@@ -17,12 +21,12 @@ type Status = "idle" | "loading" | "scanning" | "error";
 
 const SPIN_SPEED = 0.04;
 /** Bump this down once the model size looks right in AR. */
-const MODEL_SCALE = 10;
+const MODEL_SCALE = 20;
 
 export default function WheelOfFortunePage() {
   const containerRef = useRef<HTMLDivElement>(null);
   const mindarRef = useRef<MindARThreeInstance | null>(null);
-  const mixerRef = useRef<{ update: (dt: number) => void } | null>(null);
+  const mixerRef = useRef<AnimationController | null>(null);
   const clockRef = useRef<{ getDelta: () => number } | null>(null);
   const markerVisibleRef = useRef(false);
   const playAnimationRef = useRef<(() => void) | null>(null);
@@ -134,25 +138,29 @@ export default function WheelOfFortunePage() {
           anchor.group.add(gltf.scene);
 
           if (gltf.animations.length > 0) {
-            setModelStatus(
-              `Model ready — ${gltf.animations.length} animation clip(s)`,
+            const controller = createAnimationController(
+              THREE,
+              gltf.scene,
+              gltf.animations,
             );
 
-            const mixer = new THREE.AnimationMixer(gltf.scene);
-            const action = mixer.clipAction(gltf.animations[0]);
-            action.setLoop(THREE.LoopRepeat, Infinity);
-            mixerRef.current = mixer;
-            clockRef.current = new THREE.Clock();
+            if (controller) {
+              setModelStatus(
+                `Model ready — ${gltf.animations.length} clip(s): ${controller.clipSummary}`,
+              );
+              mixerRef.current = controller;
+              clockRef.current = new THREE.Clock();
 
-            playAnimationRef.current = () => {
-              action.reset();
-              action.play();
-              setAnimationStarted(true);
-            };
-            stopAnimationRef.current = () => {
-              action.stop();
-              setAnimationStarted(false);
-            };
+              playAnimationRef.current = () => {
+                clockRef.current = new THREE.Clock();
+                controller.play();
+                setAnimationStarted(true);
+              };
+              stopAnimationRef.current = () => {
+                controller.stop();
+                setAnimationStarted(false);
+              };
+            }
           } else {
             setModelStatus(
               "Model ready — no baked clips, spinning wheel parts instead",
@@ -185,10 +193,10 @@ export default function WheelOfFortunePage() {
 
       const { renderer, scene, camera } = mindarThree;
       renderer.setAnimationLoop(() => {
-        const mixer = mixerRef.current;
+        const controller = mixerRef.current;
         const clock = clockRef.current;
-        if (mixer && clock) {
-          mixer.update(clock.getDelta());
+        if (controller && clock) {
+          controller.update(clock.getDelta());
         }
 
         if (isSpinningRef.current) {
