@@ -49,7 +49,7 @@ export default function ModelPreview({ transform }: ModelPreviewProps) {
       const { THREE, GLTFLoader } = await loadThreeAndGLTF();
       if (disposed) return;
 
-      const THREE_RT = THREE as ThreePreviewRuntime;
+      const THREE_RT = THREE as unknown as ThreePreviewRuntime;
       const scene = new THREE_RT.Scene();
       const camera = new THREE_RT.PerspectiveCamera(
         45,
