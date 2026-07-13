@@ -67,20 +67,27 @@ export default function ModelPreview({ transform }: ModelPreviewProps) {
       addARLights(THREE, scene);
 
       const loader = new GLTFLoader();
-      loader.load(MODEL, (gltf) => {
-        if (disposed) return;
+      loader.load(
+        MODEL,
+        (gltf) => {
+          if (disposed) return;
 
-        brightenModelMaterials(gltf.scene);
-        applyArModelTransform(gltf.scene, transformRef.current);
-        modelSceneRef.current = gltf.scene;
-        scene.add(gltf.scene);
+          brightenModelMaterials(gltf.scene);
+          applyArModelTransform(gltf.scene, transformRef.current);
+          modelSceneRef.current = gltf.scene;
+          scene.add(gltf.scene);
 
-        if (gltf.animations.length > 0) {
-          controller = createAnimationController(THREE, gltf.scene, gltf.animations);
-          clock = new THREE.Clock();
-          controller?.play();
-        }
-      });
+          if (gltf.animations.length > 0) {
+            controller = createAnimationController(THREE, gltf.scene, gltf.animations);
+            clock = new THREE.Clock();
+            controller?.play();
+          }
+        },
+        undefined,
+        (err) => {
+          console.error("Preview model load failed:", err);
+        },
+      );
 
       const renderLoop = () => {
         if (disposed) return;
