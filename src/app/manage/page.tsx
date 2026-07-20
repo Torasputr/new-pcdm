@@ -1,26 +1,48 @@
 "use client";
 
-import ModelPreview from "@/components/ModelPreview";
+import ArManagePreview from "@/components/ArManagePreview";
 import {
   DEFAULT_AR_MODEL_TRANSFORM,
   loadArModelTransform,
   saveArModelTransform,
   type ArModelTransform,
 } from "@/lib/ar-model-config";
+import { loadMindARModules } from "@/lib/mindar-loader";
 import Link from "next/link";
-import { useEffect, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useState, type ReactNode } from "react";
 
 type Axis = "x" | "y" | "z";
+type CameraStatus = "idle" | "loading" | "ready" | "error";
 
 export default function ManagePage() {
   const [transform, setTransform] = useState<ArModelTransform>(
     DEFAULT_AR_MODEL_TRANSFORM,
   );
   const [savedMessage, setSavedMessage] = useState<string | null>(null);
+  const [scriptsReady, setScriptsReady] = useState(false);
+  const [cameraActive, setCameraActive] = useState(false);
+  const [cameraStatus, setCameraStatus] = useState<CameraStatus>("idle");
+  const [cameraError, setCameraError] = useState<string | null>(null);
 
   useEffect(() => {
     setTransform(loadArModelTransform());
+    loadMindARModules()
+      .then(() => setScriptsReady(true))
+      .catch(() => setCameraError("Failed to load AR engine."));
   }, []);
+
+  const handleCameraStatus = useCallback(
+    (status: CameraStatus, message?: string) => {
+      setCameraStatus(status);
+      if (status === "error") {
+        setCameraError(message ?? "Camera error.");
+        setCameraActive(false);
+      } else {
+        setCameraError(null);
+      }
+    },
+    [],
+  );
 
   const updateScale = (scale: number) => {
     setTransform((current) => ({ ...current, scale }));
@@ -42,7 +64,7 @@ export default function ManagePage() {
 
   const handleSave = () => {
     saveArModelTransform(transform);
-    setSavedMessage("Saved! Open the AR experience to test on your marker.");
+    setSavedMessage("Saved! These settings apply in the AR experience too.");
     window.setTimeout(() => setSavedMessage(null), 4000);
   };
 
@@ -53,133 +75,191 @@ export default function ManagePage() {
     window.setTimeout(() => setSavedMessage(null), 4000);
   };
 
+  const openCamera = () => {
+    setCameraError(null);
+    setCameraActive(true);
+  };
+
+  const closeCamera = () => {
+    setCameraActive(false);
+    setCameraStatus("idle");
+  };
+
   return (
-    <main className="min-h-screen bg-zinc-950 text-white">
-      <div className="mx-auto max-w-5xl px-6 py-10">
-        <div className="mb-8 flex flex-wrap items-center justify-between gap-4">
+    <main
+      className={`bg-zinc-950 text-white ${
+        cameraActive ? "fixed inset-0 overflow-hidden" : "min-h-screen"
+      }`}
+    >
+      <ArManagePreview
+        transform={transform}
+        active={cameraActive}
+        onStatusChange={handleCameraStatus}
+      />
+
+      {/* Top bar */}
+      <div
+        className={`${
+          cameraActive ? "fixed top-0 right-0 left-0 z-30" : "relative"
+        } border-b border-zinc-800 bg-zinc-950/90 px-4 py-3 backdrop-blur`}
+      >
+        <div className="mx-auto flex max-w-5xl items-center justify-between gap-3">
           <div>
-            <p className="text-sm font-medium uppercase tracking-widest text-emerald-400">
+            <p className="text-xs font-medium uppercase tracking-widest text-emerald-400">
               AR settings
             </p>
-            <h1 className="mt-1 text-3xl font-bold">Model position &amp; size</h1>
-            <p className="mt-2 max-w-xl text-zinc-400">
-              Tune how the 3D model sits on the marker. Save here, then test in
-              the AR scanner on the same browser.
-            </p>
+            <h1 className="text-lg font-bold sm:text-xl">
+              Model position &amp; size
+            </h1>
           </div>
-          <div className="flex flex-wrap gap-3">
+          <div className="flex flex-wrap items-center gap-2">
+            {cameraActive ? (
+              <button
+                type="button"
+                onClick={closeCamera}
+                className="rounded-full border border-zinc-700 px-4 py-2 text-sm hover:bg-zinc-900"
+              >
+                Close camera
+              </button>
+            ) : (
+              <button
+                type="button"
+                onClick={openCamera}
+                disabled={!scriptsReady || cameraStatus === "loading"}
+                className="rounded-full bg-emerald-500 px-4 py-2 text-sm font-semibold text-zinc-950 hover:bg-emerald-400 disabled:opacity-50"
+              >
+                {!scriptsReady
+                  ? "Loading AR…"
+                  : cameraStatus === "loading"
+                    ? "Opening camera…"
+                    : "Open AR camera"}
+              </button>
+            )}
             <Link
               href="/wheel-of-fortune"
-              className="rounded-full border border-zinc-700 px-5 py-2.5 text-sm hover:bg-zinc-900"
+              className="rounded-full border border-zinc-700 px-4 py-2 text-sm hover:bg-zinc-900"
             >
               Test in AR
             </Link>
             <Link
               href="/"
-              className="rounded-full border border-zinc-700 px-5 py-2.5 text-sm hover:bg-zinc-900"
+              className="rounded-full border border-zinc-700 px-4 py-2 text-sm hover:bg-zinc-900"
             >
               Home
             </Link>
           </div>
         </div>
+      </div>
 
-        <div className="grid gap-8 lg:grid-cols-2">
-          <section>
-            <h2 className="mb-3 text-sm font-semibold text-zinc-300">Preview</h2>
-            <ModelPreview transform={transform} />
-            <p className="mt-3 text-xs text-zinc-500">
-              Desktop preview only — final placement should be checked on your
-              phone in AR.
-            </p>
-          </section>
+      {/* Controls panel */}
+      <div
+        className={
+          cameraActive
+            ? "fixed right-0 bottom-0 left-0 z-30 max-h-[55vh] overflow-y-auto rounded-t-2xl border-t border-zinc-700 bg-zinc-950/95 px-4 py-5 backdrop-blur"
+            : "mx-auto max-w-5xl px-6 py-8"
+        }
+      >
+        {!cameraActive && (
+          <p className="mb-6 max-w-xl text-zinc-400">
+            Open the AR camera and point at your marker. Use the sliders to
+            adjust size and placement in real time, then save.
+          </p>
+        )}
 
-          <section className="space-y-6">
+        {cameraError && (
+          <p className="mb-4 rounded-lg bg-red-950/60 px-4 py-3 text-sm text-red-300">
+            {cameraError}
+          </p>
+        )}
+
+        <div className={`space-y-6 ${cameraActive ? "" : "max-w-xl"}`}>
+          <SliderField
+            label="Scale"
+            value={transform.scale}
+            min={0.1}
+            max={50}
+            step={0.1}
+            onChange={updateScale}
+          />
+
+          <FieldGroup title="Position">
             <SliderField
-              label="Scale"
-              value={transform.scale}
-              min={0.1}
-              max={50}
-              step={0.1}
-              onChange={updateScale}
+              label="X"
+              value={transform.position.x}
+              min={-5}
+              max={5}
+              step={0.01}
+              onChange={(value) => updatePosition("x", value)}
             />
+            <SliderField
+              label="Y"
+              value={transform.position.y}
+              min={-5}
+              max={5}
+              step={0.01}
+              onChange={(value) => updatePosition("y", value)}
+            />
+            <SliderField
+              label="Z"
+              value={transform.position.z}
+              min={-5}
+              max={5}
+              step={0.01}
+              onChange={(value) => updatePosition("z", value)}
+            />
+          </FieldGroup>
 
-            <FieldGroup title="Position">
-              <SliderField
-                label="X"
-                value={transform.position.x}
-                min={-5}
-                max={5}
-                step={0.01}
-                onChange={(value) => updatePosition("x", value)}
-              />
-              <SliderField
-                label="Y"
-                value={transform.position.y}
-                min={-5}
-                max={5}
-                step={0.01}
-                onChange={(value) => updatePosition("y", value)}
-              />
-              <SliderField
-                label="Z"
-                value={transform.position.z}
-                min={-5}
-                max={5}
-                step={0.01}
-                onChange={(value) => updatePosition("z", value)}
-              />
-            </FieldGroup>
+          <FieldGroup title="Rotation (degrees)">
+            <SliderField
+              label="X"
+              value={transform.rotation.x}
+              min={-180}
+              max={180}
+              step={1}
+              onChange={(value) => updateRotation("x", value)}
+            />
+            <SliderField
+              label="Y"
+              value={transform.rotation.y}
+              min={-180}
+              max={180}
+              step={1}
+              onChange={(value) => updateRotation("y", value)}
+            />
+            <SliderField
+              label="Z"
+              value={transform.rotation.z}
+              min={-180}
+              max={180}
+              step={1}
+              onChange={(value) => updateRotation("z", value)}
+            />
+          </FieldGroup>
 
-            <FieldGroup title="Rotation (degrees)">
-              <SliderField
-                label="X"
-                value={transform.rotation.x}
-                min={-180}
-                max={180}
-                step={1}
-                onChange={(value) => updateRotation("x", value)}
-              />
-              <SliderField
-                label="Y"
-                value={transform.rotation.y}
-                min={-180}
-                max={180}
-                step={1}
-                onChange={(value) => updateRotation("y", value)}
-              />
-              <SliderField
-                label="Z"
-                value={transform.rotation.z}
-                min={-180}
-                max={180}
-                step={1}
-                onChange={(value) => updateRotation("z", value)}
-              />
-            </FieldGroup>
+          <div className="flex flex-wrap gap-3">
+            <button
+              type="button"
+              onClick={handleSave}
+              className="rounded-full bg-emerald-500 px-6 py-3 font-semibold text-zinc-950 hover:bg-emerald-400"
+            >
+              Save settings
+            </button>
+            <button
+              type="button"
+              onClick={handleReset}
+              className="rounded-full border border-zinc-700 px-6 py-3 text-sm hover:bg-zinc-900"
+            >
+              Reset to defaults
+            </button>
+          </div>
 
-            <div className="flex flex-wrap gap-3">
-              <button
-                type="button"
-                onClick={handleSave}
-                className="rounded-full bg-emerald-500 px-6 py-3 font-semibold text-zinc-950 hover:bg-emerald-400"
-              >
-                Save settings
-              </button>
-              <button
-                type="button"
-                onClick={handleReset}
-                className="rounded-full border border-zinc-700 px-6 py-3 text-sm hover:bg-zinc-900"
-              >
-                Reset to defaults
-              </button>
-            </div>
+          {savedMessage && (
+            <p className="rounded-lg bg-emerald-950/50 px-4 py-3 text-sm text-emerald-300">
+              {savedMessage}
+            </p>
+          )}
 
-            {savedMessage && (
-              <p className="rounded-lg bg-emerald-950/50 px-4 py-3 text-sm text-emerald-300">
-                {savedMessage}
-              </p>
-            )}
-
+          {!cameraActive && (
             <div>
               <p className="mb-2 text-sm font-semibold text-zinc-300">
                 Saved config (JSON)
@@ -188,7 +268,7 @@ export default function ManagePage() {
                 {JSON.stringify(transform, null, 2)}
               </pre>
             </div>
-          </section>
+          )}
         </div>
       </div>
     </main>
