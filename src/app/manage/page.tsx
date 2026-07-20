@@ -3,7 +3,6 @@
 import ArManagePreview from "@/components/ArManagePreview";
 import {
   DEFAULT_AR_MODEL_TRANSFORM,
-  downloadArModelConfig,
   fetchArModelTransform,
   saveArModelTransform,
   type ArModelTransform,
@@ -70,26 +69,28 @@ export default function ManagePage() {
     setIsSaving(false);
 
     if (result.ok) {
-      setSavedMessage(
-        "Saved to public/config/ar-model.json — commit and deploy to apply everywhere.",
-      );
+      setTransform(result.config);
+      setSavedMessage("Settings saved — applied immediately.");
     } else {
-      downloadArModelConfig(transform);
-      setSavedMessage(
-        "Saved in this browser. Downloaded ar-model.json — replace public/config/ar-model.json and redeploy.",
-      );
+      setSavedMessage(result.error ?? "Could not save settings.");
     }
 
-    window.setTimeout(() => setSavedMessage(null), 6000);
+    window.setTimeout(() => setSavedMessage(null), 5000);
   };
 
   const handleReset = async () => {
-    setTransform(DEFAULT_AR_MODEL_TRANSFORM);
     setIsSaving(true);
-    await saveArModelTransform(DEFAULT_AR_MODEL_TRANSFORM);
+    const result = await saveArModelTransform(DEFAULT_AR_MODEL_TRANSFORM);
     setIsSaving(false);
-    setSavedMessage("Reset to defaults and saved to JSON.");
-    window.setTimeout(() => setSavedMessage(null), 4000);
+
+    if (result.ok) {
+      setTransform(result.config);
+      setSavedMessage("Reset to defaults and saved.");
+    } else {
+      setSavedMessage(result.error ?? "Could not reset settings.");
+    }
+
+    window.setTimeout(() => setSavedMessage(null), 5000);
   };
 
   const openCamera = () => {
@@ -284,7 +285,7 @@ export default function ManagePage() {
                 Config file preview
               </p>
               <p className="mb-2 text-xs text-zinc-500">
-                Saved to <code className="text-zinc-400">public/config/ar-model.json</code>
+                Stored on the server — updates apply immediately after save
               </p>
               <pre className="overflow-x-auto rounded-lg bg-zinc-900 p-4 text-xs text-zinc-400">
                 {JSON.stringify(transform, null, 2)}

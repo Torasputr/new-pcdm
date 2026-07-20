@@ -11,10 +11,7 @@ export const DEFAULT_AR_MODEL_TRANSFORM: ArModelTransform = {
   rotation: { x: 0, y: 0, z: 0 },
 };
 
-export const AR_MODEL_CONFIG_URL = "/config/ar-model.json";
 export const AR_MODEL_CONFIG_API = "/api/ar-model-config";
-
-const STORAGE_KEY = "kivycube-ar-model-config";
 
 export function mergeArModelTransform(
   partial: Partial<ArModelTransform>,
@@ -32,51 +29,26 @@ export function mergeArModelTransform(
   };
 }
 
-function loadFromStorage(): ArModelTransform | null {
-  if (typeof window === "undefined") return null;
-
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    if (!raw) return null;
-    return mergeArModelTransform(JSON.parse(raw) as Partial<ArModelTransform>);
-  } catch {
-    return null;
-  }
-}
-
-function saveToStorage(transform: ArModelTransform): void {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(transform));
-}
-
-/** Sync load — browser localStorage only, else defaults. */
-export function loadArModelTransform(): ArModelTransform {
-  return loadFromStorage() ?? DEFAULT_AR_MODEL_TRANSFORM;
-}
-
-/** Load localStorage first, then public/config/ar-model.json. */
+/** Load saved settings from the server (JSON file or Vercel Blob). */
 export async function fetchArModelTransform(): Promise<ArModelTransform> {
-  const stored = loadFromStorage();
-  if (stored) return stored;
-
   try {
-    const response = await fetch(AR_MODEL_CONFIG_URL, { cache: "no-store" });
+    const response = await fetch(AR_MODEL_CONFIG_API, { cache: "no-store" });
     if (response.ok) {
-      const json = (await response.json()) as Partial<ArModelTransform>;
-      return mergeArModelTransform(json);
+      return mergeArModelTransform(
+        (await response.json()) as Partial<ArModelTransform>,
+      );
     }
   } catch (error) {
-    console.warn("Could not load ar-model.json:", error);
+    console.warn("Could not load AR model config:", error);
   }
 
   return DEFAULT_AR_MODEL_TRANSFORM;
 }
 
-/** Save to localStorage and public/config/ar-model.json via API. */
+/** Save settings — updates public/config/ar-model.json (local) or Vercel Blob (production). */
 export async function saveArModelTransform(
   transform: ArModelTransform,
-): Promise<{ ok: boolean; config: ArModelTransform }> {
-  saveToStorage(transform);
-
+): Promise<{ ok: boolean; config: ArModelTransform; error?: string }> {
   try {
     const response = await fetch(AR_MODEL_CONFIG_API, {
       method: "POST",
@@ -84,22 +56,29 @@ export async function saveArModelTransform(
       body: JSON.stringify(transform),
     });
 
-    if (response.ok) {
-      const data = (await response.json()) as {
-        ok: boolean;
-        config: ArModelTransform;
-      };
+    const data = (await response.json()) as {
+      ok?: boolean;
+      config?: ArModelTransform;
+      error?: string;
+    };
+
+    if (response.ok && data.ok !== false) {
       return { ok: true, config: data.config ?? transform };
     }
+
+    return {
+      ok: false,
+      config: transform,
+      error: data.error ?? "Could not save settings.",
+    };
   } catch (error) {
-    console.warn("Could not save ar-model.json via API:", error);
+    console.warn("Could not save AR model config:", error);
+    return {
+      ok: false,
+      config: transform,
+      error: "Could not reach the save API.",
+    };
   }
-
-  return { ok: false, config: transform };
-}
-
-export function clearArModelTransform(): void {
-  localStorage.removeItem(STORAGE_KEY);
 }
 
 export function applyArModelTransform(
@@ -122,16 +101,4 @@ export function applyArModelTransform(
     transform.rotation.y * deg,
     transform.rotation.z * deg,
   );
-}
-
-export function downloadArModelConfig(transform: ArModelTransform): void {
-  const blob = new Blob([`${JSON.stringify(transform, null, 2)}\n`], {
-    type: "application/json",
-  });
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement("a");
-  link.href = url;
-  link.download = "ar-model.json";
-  link.click();
-  URL.revokeObjectURL(url);
 }
