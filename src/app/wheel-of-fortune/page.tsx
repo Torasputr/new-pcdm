@@ -13,7 +13,7 @@ import {
 } from "@/lib/mindar-loader";
 import {
   applyArModelTransform,
-  loadArModelTransform,
+  fetchArModelTransform,
 } from "@/lib/ar-model-config";
 import type {
   AnimationController,
@@ -135,7 +135,7 @@ export default function WheelOfFortunePage() {
 
       addARLights(THREE, mindarThree.scene as { add: (...o: object[]) => void });
 
-      const modelTransform = loadArModelTransform();
+      const modelTransform = await fetchArModelTransform();
 
       const loader = new GLTFLoader();
       loader.load(

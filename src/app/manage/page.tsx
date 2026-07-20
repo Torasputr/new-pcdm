@@ -3,7 +3,8 @@
 import ArManagePreview from "@/components/ArManagePreview";
 import {
   DEFAULT_AR_MODEL_TRANSFORM,
-  loadArModelTransform,
+  downloadArModelConfig,
+  fetchArModelTransform,
   saveArModelTransform,
   type ArModelTransform,
 } from "@/lib/ar-model-config";
@@ -19,13 +20,14 @@ export default function ManagePage() {
     DEFAULT_AR_MODEL_TRANSFORM,
   );
   const [savedMessage, setSavedMessage] = useState<string | null>(null);
+  const [isSaving, setIsSaving] = useState(false);
   const [scriptsReady, setScriptsReady] = useState(false);
   const [cameraActive, setCameraActive] = useState(false);
   const [cameraStatus, setCameraStatus] = useState<CameraStatus>("idle");
   const [cameraError, setCameraError] = useState<string | null>(null);
 
   useEffect(() => {
-    setTransform(loadArModelTransform());
+    fetchArModelTransform().then(setTransform);
     loadMindARModules()
       .then(() => setScriptsReady(true))
       .catch(() => setCameraError("Failed to load AR engine."));
@@ -62,16 +64,31 @@ export default function ManagePage() {
     }));
   };
 
-  const handleSave = () => {
-    saveArModelTransform(transform);
-    setSavedMessage("Saved! These settings apply in the AR experience too.");
-    window.setTimeout(() => setSavedMessage(null), 4000);
+  const handleSave = async () => {
+    setIsSaving(true);
+    const result = await saveArModelTransform(transform);
+    setIsSaving(false);
+
+    if (result.ok) {
+      setSavedMessage(
+        "Saved to public/config/ar-model.json — commit and deploy to apply everywhere.",
+      );
+    } else {
+      downloadArModelConfig(transform);
+      setSavedMessage(
+        "Saved in this browser. Downloaded ar-model.json — replace public/config/ar-model.json and redeploy.",
+      );
+    }
+
+    window.setTimeout(() => setSavedMessage(null), 6000);
   };
 
-  const handleReset = () => {
+  const handleReset = async () => {
     setTransform(DEFAULT_AR_MODEL_TRANSFORM);
-    saveArModelTransform(DEFAULT_AR_MODEL_TRANSFORM);
-    setSavedMessage("Reset to defaults and saved.");
+    setIsSaving(true);
+    await saveArModelTransform(DEFAULT_AR_MODEL_TRANSFORM);
+    setIsSaving(false);
+    setSavedMessage("Reset to defaults and saved to JSON.");
     window.setTimeout(() => setSavedMessage(null), 4000);
   };
 
@@ -240,14 +257,16 @@ export default function ManagePage() {
             <button
               type="button"
               onClick={handleSave}
-              className="rounded-full bg-emerald-500 px-6 py-3 font-semibold text-zinc-950 hover:bg-emerald-400"
+              disabled={isSaving}
+              className="rounded-full bg-emerald-500 px-6 py-3 font-semibold text-zinc-950 hover:bg-emerald-400 disabled:opacity-50"
             >
-              Save settings
+              {isSaving ? "Saving…" : "Save settings"}
             </button>
             <button
               type="button"
               onClick={handleReset}
-              className="rounded-full border border-zinc-700 px-6 py-3 text-sm hover:bg-zinc-900"
+              disabled={isSaving}
+              className="rounded-full border border-zinc-700 px-6 py-3 text-sm hover:bg-zinc-900 disabled:opacity-50"
             >
               Reset to defaults
             </button>
@@ -262,7 +281,10 @@ export default function ManagePage() {
           {!cameraActive && (
             <div>
               <p className="mb-2 text-sm font-semibold text-zinc-300">
-                Saved config (JSON)
+                Config file preview
+              </p>
+              <p className="mb-2 text-xs text-zinc-500">
+                Saved to <code className="text-zinc-400">public/config/ar-model.json</code>
               </p>
               <pre className="overflow-x-auto rounded-lg bg-zinc-900 p-4 text-xs text-zinc-400">
                 {JSON.stringify(transform, null, 2)}

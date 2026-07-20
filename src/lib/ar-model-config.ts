@@ -11,9 +11,14 @@ export const DEFAULT_AR_MODEL_TRANSFORM: ArModelTransform = {
   rotation: { x: 0, y: 0, z: 0 },
 };
 
+export const AR_MODEL_CONFIG_URL = "/config/ar-model.json";
+export const AR_MODEL_CONFIG_API = "/api/ar-model-config";
+
 const STORAGE_KEY = "kivycube-ar-model-config";
 
-function mergeTransform(partial: Partial<ArModelTransform>): ArModelTransform {
+export function mergeArModelTransform(
+  partial: Partial<ArModelTransform>,
+): ArModelTransform {
   return {
     scale: partial.scale ?? DEFAULT_AR_MODEL_TRANSFORM.scale,
     position: {
@@ -27,22 +32,70 @@ function mergeTransform(partial: Partial<ArModelTransform>): ArModelTransform {
   };
 }
 
-export function loadArModelTransform(): ArModelTransform {
-  if (typeof window === "undefined") {
-    return DEFAULT_AR_MODEL_TRANSFORM;
-  }
+function loadFromStorage(): ArModelTransform | null {
+  if (typeof window === "undefined") return null;
 
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
-    if (!raw) return DEFAULT_AR_MODEL_TRANSFORM;
-    return mergeTransform(JSON.parse(raw) as Partial<ArModelTransform>);
+    if (!raw) return null;
+    return mergeArModelTransform(JSON.parse(raw) as Partial<ArModelTransform>);
   } catch {
-    return DEFAULT_AR_MODEL_TRANSFORM;
+    return null;
   }
 }
 
-export function saveArModelTransform(transform: ArModelTransform): void {
+function saveToStorage(transform: ArModelTransform): void {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(transform));
+}
+
+/** Sync load — browser localStorage only, else defaults. */
+export function loadArModelTransform(): ArModelTransform {
+  return loadFromStorage() ?? DEFAULT_AR_MODEL_TRANSFORM;
+}
+
+/** Load localStorage first, then public/config/ar-model.json. */
+export async function fetchArModelTransform(): Promise<ArModelTransform> {
+  const stored = loadFromStorage();
+  if (stored) return stored;
+
+  try {
+    const response = await fetch(AR_MODEL_CONFIG_URL, { cache: "no-store" });
+    if (response.ok) {
+      const json = (await response.json()) as Partial<ArModelTransform>;
+      return mergeArModelTransform(json);
+    }
+  } catch (error) {
+    console.warn("Could not load ar-model.json:", error);
+  }
+
+  return DEFAULT_AR_MODEL_TRANSFORM;
+}
+
+/** Save to localStorage and public/config/ar-model.json via API. */
+export async function saveArModelTransform(
+  transform: ArModelTransform,
+): Promise<{ ok: boolean; config: ArModelTransform }> {
+  saveToStorage(transform);
+
+  try {
+    const response = await fetch(AR_MODEL_CONFIG_API, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(transform),
+    });
+
+    if (response.ok) {
+      const data = (await response.json()) as {
+        ok: boolean;
+        config: ArModelTransform;
+      };
+      return { ok: true, config: data.config ?? transform };
+    }
+  } catch (error) {
+    console.warn("Could not save ar-model.json via API:", error);
+  }
+
+  return { ok: false, config: transform };
 }
 
 export function clearArModelTransform(): void {
@@ -69,4 +122,16 @@ export function applyArModelTransform(
     transform.rotation.y * deg,
     transform.rotation.z * deg,
   );
+}
+
+export function downloadArModelConfig(transform: ArModelTransform): void {
+  const blob = new Blob([`${JSON.stringify(transform, null, 2)}\n`], {
+    type: "application/json",
+  });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = "ar-model.json";
+  link.click();
+  URL.revokeObjectURL(url);
 }
