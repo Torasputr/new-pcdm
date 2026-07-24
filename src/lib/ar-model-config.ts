@@ -13,6 +13,25 @@ export const DEFAULT_AR_MODEL_TRANSFORM: ArModelTransform = {
 
 export const AR_MODEL_CONFIG_API = "/api/ar-model-config";
 
+const STORAGE_KEY = "kivycube-ar-model-config";
+
+function loadFromStorage(): ArModelTransform | null {
+  if (typeof window === "undefined") return null;
+
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (!raw) return null;
+    return mergeArModelTransform(JSON.parse(raw) as Partial<ArModelTransform>);
+  } catch {
+    return null;
+  }
+}
+
+function saveToStorage(transform: ArModelTransform): void {
+  if (typeof window === "undefined") return;
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(transform));
+}
+
 export function mergeArModelTransform(
   partial: Partial<ArModelTransform>,
 ): ArModelTransform {
@@ -63,20 +82,26 @@ export async function saveArModelTransform(
     };
 
     if (response.ok && data.ok !== false) {
+      saveToStorage(data.config ?? transform);
       return { ok: true, config: data.config ?? transform };
     }
+
+    saveToStorage(transform);
 
     return {
       ok: false,
       config: transform,
-      error: data.error ?? "Could not save settings.",
+      error: data.error
+        ? `${data.error} (saved in this browser only)`
+        : "Could not save settings.",
     };
   } catch (error) {
     console.warn("Could not save AR model config:", error);
+    saveToStorage(transform);
     return {
       ok: false,
       config: transform,
-      error: "Could not reach the save API.",
+      error: "Could not reach the save API. Saved in this browser only.",
     };
   }
 }

@@ -3,7 +3,7 @@ import {
   mergeArModelTransform,
   type ArModelTransform,
 } from "@/lib/ar-model-config";
-import { head, put } from "@vercel/blob";
+import { del, head, put } from "@vercel/blob";
 import fs from "fs";
 import path from "path";
 
@@ -26,6 +26,11 @@ function writeConfigFile(transform: ArModelTransform): void {
   );
 }
 
+function formatError(error: unknown): string {
+  if (error instanceof Error) return error.message;
+  return "Unknown error";
+}
+
 async function readConfigBlob(): Promise<ArModelTransform | null> {
   if (!process.env.BLOB_READ_WRITE_TOKEN) return null;
 
@@ -42,6 +47,13 @@ async function readConfigBlob(): Promise<ArModelTransform | null> {
 }
 
 async function writeConfigBlob(transform: ArModelTransform): Promise<void> {
+  try {
+    const existing = await head(BLOB_PATHNAME);
+    await del(existing.url);
+  } catch {
+    // No existing blob yet.
+  }
+
   await put(BLOB_PATHNAME, JSON.stringify(transform, null, 2), {
     access: "public",
     addRandomSuffix: false,
@@ -61,12 +73,31 @@ async function readConfig(): Promise<ArModelTransform> {
 }
 
 async function writeConfig(transform: ArModelTransform): Promise<void> {
-  if (process.env.BLOB_READ_WRITE_TOKEN) {
-    await writeConfigBlob(transform);
-    return;
+  const hasBlobToken = Boolean(process.env.BLOB_READ_WRITE_TOKEN);
+
+  if (hasBlobToken) {
+    try {
+      await writeConfigBlob(transform);
+      return;
+    } catch (error) {
+      if (process.env.VERCEL) {
+        throw new Error(`Blob save failed: ${formatError(error)}`);
+      }
+      console.warn("Blob save failed, falling back to local file:", error);
+    }
   }
 
-  writeConfigFile(transform);
+  if (process.env.VERCEL) {
+    throw new Error(
+      "Vercel Blob is not connected. In Vercel: Storage → Create Blob → Connect to this project, then redeploy.",
+    );
+  }
+
+  try {
+    writeConfigFile(transform);
+  } catch (error) {
+    throw new Error(`File save failed: ${formatError(error)}`);
+  }
 }
 
 export async function GET() {
@@ -86,10 +117,8 @@ export async function POST(request: Request) {
     await writeConfig(config);
     return Response.json({ ok: true, config });
   } catch (error) {
+    const message = formatError(error);
     console.error("Failed to save ar-model config:", error);
-    return Response.json(
-      { ok: false, error: "Could not save config." },
-      { status: 500 },
-    );
+    return Response.json({ ok: false, error: message }, { status: 500 });
   }
 }
