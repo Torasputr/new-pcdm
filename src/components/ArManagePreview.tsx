@@ -98,12 +98,21 @@ export default function ArManagePreview({
         const mindarThree = new MindARThree({
           container,
           imageTargetSrc: MARKER_TARGET,
+          maxTrack: 1,
           uiLoading: "no",
           uiScanning: "no",
           uiError: "no",
+          filterMinCF: 0.0001,
+          warmupTolerance: 1,
+          missTolerance: 20,
         });
 
         mindarRef.current = mindarThree;
+        mindarThree.renderer.setClearColor?.(0x000000, 0);
+        if (mindarThree.cssRenderer) {
+          mindarThree.cssRenderer.domElement.style.pointerEvents = "none";
+          mindarThree.cssRenderer.domElement.style.display = "none";
+        }
 
         const anchor = mindarThree.addAnchor(0);
         anchor.onTargetFound = () => {
@@ -118,21 +127,6 @@ export default function ArManagePreview({
         };
 
         addARLights(THREE, mindarThree.scene as { add: (...o: object[]) => void });
-
-        const { object, controller } = await loadGifOverlay(THREE, MODEL);
-        if (disposed) {
-          stop();
-          return;
-        }
-
-        applyArModelTransform(object, transformRef.current);
-        modelSceneRef.current = object;
-        anchor.group.add(object);
-        controllerRef.current = controller;
-        clockRef.current = new THREE.Clock();
-        if (markerVisibleRef.current) {
-          controller.play();
-        }
 
         await mindarThree.start();
         if (disposed) {
@@ -153,6 +147,26 @@ export default function ArManagePreview({
         });
 
         onStatusChange?.("ready");
+
+        const { object, controller } = await loadGifOverlay(THREE, MODEL);
+        if (disposed) {
+          stop();
+          return;
+        }
+
+        applyArModelTransform(object, transformRef.current);
+        object.position.set(
+          transformRef.current.position.x,
+          transformRef.current.position.y,
+          transformRef.current.position.z + 0.02,
+        );
+        modelSceneRef.current = object;
+        anchor.group.add(object);
+        controllerRef.current = controller;
+        clockRef.current = new THREE.Clock();
+        if (markerVisibleRef.current) {
+          controller.play();
+        }
       } catch (err) {
         console.error(err);
         stop();

@@ -1,4 +1,5 @@
-export const MARKER_TARGET = "/markers/maddy.mind";
+export const MARKER_TARGET = "/markers/wheeloffortune.mind";
+export const MARKER_IMAGE = "/markers/wheelofortune.jpg";
 export const MODEL = "/models/Cat_Pixel_Sticker.gif";
 
 const THREE_URL = "/lib/three.module.js";
@@ -8,9 +9,13 @@ const GLTF_LOADER_URL = "/lib/addons/loaders/GLTFLoader.js";
 export type MindARThreeConfig = {
   container: HTMLElement;
   imageTargetSrc: string;
+  maxTrack?: number;
   uiLoading?: "yes" | "no";
   uiScanning?: "yes" | "no";
   uiError?: "yes" | "no";
+  filterMinCF?: number;
+  warmupTolerance?: number;
+  missTolerance?: number;
 };
 
 export type MindARAnchor = {
@@ -27,7 +32,10 @@ export type MindARThreeInstance = {
   renderer: {
     render: (scene: unknown, camera: unknown) => void;
     setAnimationLoop: (cb: (() => void) | null) => void;
+    setClearColor?: (color: number, alpha: number) => void;
+    domElement: HTMLElement;
   };
+  cssRenderer?: { domElement: HTMLElement };
   scene: unknown;
   camera: unknown;
 };

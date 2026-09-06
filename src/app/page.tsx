@@ -1,7 +1,6 @@
+import { MARKER_IMAGE } from "@/lib/mindar-loader";
 import Image from "next/image";
 import Link from "next/link";
-
-const MARKER_IMAGE = "/markers/maddy.png";
 
 export default function HomePage() {
   return (

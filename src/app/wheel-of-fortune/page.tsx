@@ -10,6 +10,7 @@ import {
   bindMindARResize,
   loadMindARModules,
   loadThreeAndGLTF,
+  MARKER_IMAGE,
   MARKER_TARGET,
   MODEL,
 } from "@/lib/mindar-loader";
@@ -103,12 +104,21 @@ export default function WheelOfFortunePage() {
       const mindarThree = new MindARThree({
         container,
         imageTargetSrc: MARKER_TARGET,
+        maxTrack: 1,
         uiLoading: "no",
         uiScanning: "no",
         uiError: "no",
+        filterMinCF: 0.0001,
+        warmupTolerance: 1,
+        missTolerance: 20,
       });
 
       mindarRef.current = mindarThree;
+      mindarThree.renderer.setClearColor?.(0x000000, 0);
+      if (mindarThree.cssRenderer) {
+        mindarThree.cssRenderer.domElement.style.pointerEvents = "none";
+        mindarThree.cssRenderer.domElement.style.display = "none";
+      }
 
       const anchor = mindarThree.addAnchor(0);
       anchor.onTargetFound = () => {
@@ -124,37 +134,6 @@ export default function WheelOfFortunePage() {
       };
 
       addARLights(THREE, mindarThree.scene as { add: (...o: object[]) => void });
-
-      const modelTransform = await fetchArModelTransform();
-
-      try {
-        const { object, controller } = await loadGifOverlay(THREE, MODEL);
-        applyArModelTransform(object, modelTransform);
-        anchor.group.add(object);
-
-        setModelStatus(`Sticker ready — ${controller.clipSummary}`);
-        mixerRef.current = controller;
-        clockRef.current = new THREE.Clock();
-
-        playAnimationRef.current = () => {
-          clockRef.current = new THREE.Clock();
-          controller.play();
-          setAnimationStarted(true);
-        };
-        stopAnimationRef.current = () => {
-          controller.stop();
-          setAnimationStarted(false);
-        };
-
-        if (markerVisibleRef.current) {
-          playAnimationRef.current();
-        }
-      } catch (err) {
-        console.error("GIF load failed:", err);
-        setError("Failed to load sticker GIF.");
-        setStatus("error");
-        return;
-      }
 
       await mindarThree.start();
 
@@ -173,6 +152,44 @@ export default function WheelOfFortunePage() {
       });
 
       setStatus("scanning");
+      setModelStatus("Loading sticker…");
+
+      try {
+        const [modelTransform, overlay] = await Promise.all([
+          fetchArModelTransform(),
+          loadGifOverlay(THREE, MODEL),
+        ]);
+        if (mindarRef.current !== mindarThree) return;
+
+        applyArModelTransform(overlay.object, modelTransform);
+        overlay.object.position.set(
+          modelTransform.position.x,
+          modelTransform.position.y,
+          modelTransform.position.z + 0.02,
+        );
+        anchor.group.add(overlay.object);
+
+        setModelStatus(`Sticker ready — ${overlay.controller.clipSummary}`);
+        mixerRef.current = overlay.controller;
+        clockRef.current = new THREE.Clock();
+
+        playAnimationRef.current = () => {
+          clockRef.current = new THREE.Clock();
+          overlay.controller.play();
+          setAnimationStarted(true);
+        };
+        stopAnimationRef.current = () => {
+          overlay.controller.stop();
+          setAnimationStarted(false);
+        };
+
+        if (markerVisibleRef.current) {
+          playAnimationRef.current();
+        }
+      } catch (err) {
+        console.error("GIF load failed:", err);
+        setModelStatus("Camera is on, but the sticker failed to load.");
+      }
     } catch (err) {
       console.error(err);
       stopScanner();
@@ -204,8 +221,15 @@ export default function WheelOfFortunePage() {
         <div className="relative z-10 flex min-h-screen flex-col items-center justify-center gap-6 px-6 text-center">
           <h1 className="text-2xl font-bold">Wheel of Fortune</h1>
           <p className="max-w-sm text-zinc-400">
-            Point your camera at the marker to see the cat sticker.
+            Point your camera at the wheel of fortune marker below — not the cat
+            sticker. The cat appears after the marker is found.
           </p>
+
+          <img
+            src={MARKER_IMAGE}
+            alt="Scan this wheel of fortune marker"
+            className="h-auto w-48 rounded-xl border border-zinc-700 object-cover"
+          />
 
           {error && (
             <p className="max-w-sm rounded-lg bg-red-950/60 px-4 py-3 text-sm text-red-300">
@@ -246,12 +270,18 @@ export default function WheelOfFortunePage() {
             ) : targetFound ? (
               <p>Marker found — starting animation…</p>
             ) : (
-              <p>Scanning… point at the marker</p>
+              <p>Scanning… point at the wheel of fortune marker</p>
             )}
             {modelStatus && (
               <p className="text-xs text-zinc-400">{modelStatus}</p>
             )}
           </div>
+
+          <img
+            src={MARKER_IMAGE}
+            alt="Marker to scan"
+            className="fixed right-4 bottom-24 z-30 w-20 rounded-lg border border-white/40 opacity-90"
+          />
 
           <button
             type="button"
