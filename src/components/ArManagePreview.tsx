@@ -2,11 +2,11 @@
 
 import { applyArModelTransform } from "@/lib/ar-model-config";
 import type { ArModelTransform } from "@/lib/ar-model-config";
+import { loadGifOverlay } from "@/lib/gif-plane";
+import type { TransformableObject } from "@/lib/gif-plane";
 import {
   addARLights,
   bindMindARResize,
-  brightenModelMaterials,
-  createAnimationController,
   loadMindARModules,
   loadThreeAndGLTF,
   MARKER_TARGET,
@@ -18,16 +18,13 @@ import type {
 } from "@/lib/mindar-loader";
 import { useEffect, useRef, useState } from "react";
 
-type TransformableScene = {
-  scale: { set: (x: number, y: number, z: number) => void };
-  position: { set: (x: number, y: number, z: number) => void };
-  rotation: { set: (x: number, y: number, z: number) => void };
-};
-
 type ArManagePreviewProps = {
   transform: ArModelTransform;
   active: boolean;
-  onStatusChange?: (status: "idle" | "loading" | "ready" | "error", message?: string) => void;
+  onStatusChange?: (
+    status: "idle" | "loading" | "ready" | "error",
+    message?: string,
+  ) => void;
 };
 
 export default function ArManagePreview({
@@ -37,7 +34,7 @@ export default function ArManagePreview({
 }: ArManagePreviewProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const mindarRef = useRef<MindARThreeInstance | null>(null);
-  const modelSceneRef = useRef<TransformableScene | null>(null);
+  const modelSceneRef = useRef<TransformableObject | null>(null);
   const transformRef = useRef(transform);
   const controllerRef = useRef<AnimationController | null>(null);
   const clockRef = useRef<{ getDelta: () => number } | null>(null);
@@ -91,7 +88,7 @@ export default function ArManagePreview({
       try {
         document.documentElement.classList.add("ar-active");
 
-        const [{ MindARThree }, { THREE, GLTFLoader }] = await Promise.all([
+        const [{ MindARThree }, { THREE }] = await Promise.all([
           loadMindARModules(),
           loadThreeAndGLTF(),
         ]);
@@ -122,38 +119,20 @@ export default function ArManagePreview({
 
         addARLights(THREE, mindarThree.scene as { add: (...o: object[]) => void });
 
-        const loader = new GLTFLoader();
-        loader.load(
-          MODEL,
-          (gltf) => {
-            if (disposed) return;
+        const { object, controller } = await loadGifOverlay(THREE, MODEL);
+        if (disposed) {
+          stop();
+          return;
+        }
 
-            applyArModelTransform(gltf.scene, transformRef.current);
-            brightenModelMaterials(gltf.scene);
-            modelSceneRef.current = gltf.scene;
-            anchor.group.add(gltf.scene);
-
-            if (gltf.animations.length > 0) {
-              const controller = createAnimationController(
-                THREE,
-                gltf.scene,
-                gltf.animations,
-              );
-              if (controller) {
-                controllerRef.current = controller;
-                clockRef.current = new THREE.Clock();
-                if (markerVisibleRef.current) {
-                  controller.play();
-                }
-              }
-            }
-          },
-          undefined,
-          (err) => {
-            console.error("Manage AR model load failed:", err);
-            onStatusChange?.("error", "Failed to load 3D model.");
-          },
-        );
+        applyArModelTransform(object, transformRef.current);
+        modelSceneRef.current = object;
+        anchor.group.add(object);
+        controllerRef.current = controller;
+        clockRef.current = new THREE.Clock();
+        if (markerVisibleRef.current) {
+          controller.play();
+        }
 
         await mindarThree.start();
         if (disposed) {
@@ -165,10 +144,10 @@ export default function ArManagePreview({
 
         const { renderer, scene, camera } = mindarThree;
         renderer.setAnimationLoop(() => {
-          const controller = controllerRef.current;
+          const gifController = controllerRef.current;
           const clock = clockRef.current;
-          if (controller && clock) {
-            controller.update(clock.getDelta());
+          if (gifController && clock) {
+            gifController.update(clock.getDelta());
           }
           renderer.render(scene, camera);
         });
@@ -177,7 +156,10 @@ export default function ArManagePreview({
       } catch (err) {
         console.error(err);
         stop();
-        onStatusChange?.("error", "Could not start camera. Allow access and try again.");
+        onStatusChange?.(
+          "error",
+          "Could not start camera or load sticker. Allow access and try again.",
+        );
       }
     };
 
@@ -199,7 +181,7 @@ export default function ArManagePreview({
         <p className="inline-block rounded-full bg-black/60 px-4 py-2 backdrop-blur">
           {targetFound
             ? "Marker found — adjust sliders to tune placement"
-            : "Point at the marker to preview the model"}
+            : "Point at the marker to preview the sticker"}
         </p>
       </div>
     </>

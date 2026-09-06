@@ -1,5 +1,5 @@
 export const MARKER_TARGET = "/markers/maddy.mind";
-export const MODEL = "/models/Loop.glb";
+export const MODEL = "/models/Cat_Pixel_Sticker.gif";
 
 const THREE_URL = "/lib/three.module.js";
 const MINDAR_URL = "/lib/mindar-image-three.prod.js";
@@ -53,6 +53,11 @@ export type ThreeRuntime = {
   };
   Clock: new () => { getDelta: () => number };
   LoopRepeat: number;
+  DoubleSide: number;
+  PlaneGeometry: new (width: number, height: number) => object;
+  MeshBasicMaterial: new (params: object) => object;
+  Mesh: new (geometry: object, material: object) => object;
+  CanvasTexture: new (canvas: HTMLCanvasElement) => { needsUpdate: boolean };
 };
 
 export type AnimationActionRuntime = {

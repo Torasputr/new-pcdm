@@ -1,20 +1,18 @@
 "use client";
 
 import {
+  applyArModelTransform,
+  fetchArModelTransform,
+} from "@/lib/ar-model-config";
+import { loadGifOverlay } from "@/lib/gif-plane";
+import {
   addARLights,
   bindMindARResize,
-  brightenModelMaterials,
-  createAnimationController,
-  findSpinTargets,
   loadMindARModules,
   loadThreeAndGLTF,
   MARKER_TARGET,
   MODEL,
 } from "@/lib/mindar-loader";
-import {
-  applyArModelTransform,
-  fetchArModelTransform,
-} from "@/lib/ar-model-config";
 import type {
   AnimationController,
   MindARThreeInstance,
@@ -24,8 +22,6 @@ import { useCallback, useEffect, useRef, useState } from "react";
 
 type Status = "idle" | "loading" | "scanning" | "error";
 
-const SPIN_SPEED = 0.04;
-
 export default function WheelOfFortunePage() {
   const containerRef = useRef<HTMLDivElement>(null);
   const mindarRef = useRef<MindARThreeInstance | null>(null);
@@ -34,8 +30,6 @@ export default function WheelOfFortunePage() {
   const markerVisibleRef = useRef(false);
   const playAnimationRef = useRef<(() => void) | null>(null);
   const stopAnimationRef = useRef<(() => void) | null>(null);
-  const spinTargetsRef = useRef<Array<{ rotation: { y: number } }>>([]);
-  const isSpinningRef = useRef(false);
   const unbindResizeRef = useRef<(() => void) | null>(null);
 
   const [status, setStatus] = useState<Status>("idle");
@@ -70,8 +64,6 @@ export default function WheelOfFortunePage() {
     markerVisibleRef.current = false;
     playAnimationRef.current = null;
     stopAnimationRef.current = null;
-    spinTargetsRef.current = [];
-    isSpinningRef.current = false;
     setTargetFound(false);
     setAnimationStarted(false);
     setModelStatus(null);
@@ -86,8 +78,6 @@ export default function WheelOfFortunePage() {
     markerVisibleRef.current = false;
     playAnimationRef.current = null;
     stopAnimationRef.current = null;
-    spinTargetsRef.current = [];
-    isSpinningRef.current = false;
     setStatus("loading");
     document.documentElement.classList.add("ar-active");
 
@@ -105,7 +95,7 @@ export default function WheelOfFortunePage() {
     }
 
     try {
-      const [{ MindARThree }, { THREE, GLTFLoader }] = await Promise.all([
+      const [{ MindARThree }, { THREE }] = await Promise.all([
         loadMindARModules(),
         loadThreeAndGLTF(),
       ]);
@@ -137,66 +127,34 @@ export default function WheelOfFortunePage() {
 
       const modelTransform = await fetchArModelTransform();
 
-      const loader = new GLTFLoader();
-      loader.load(
-        MODEL,
-        (gltf) => {
-          applyArModelTransform(gltf.scene, modelTransform);
+      try {
+        const { object, controller } = await loadGifOverlay(THREE, MODEL);
+        applyArModelTransform(object, modelTransform);
+        anchor.group.add(object);
 
-          brightenModelMaterials(gltf.scene);
-          anchor.group.add(gltf.scene);
+        setModelStatus(`Sticker ready — ${controller.clipSummary}`);
+        mixerRef.current = controller;
+        clockRef.current = new THREE.Clock();
 
-          if (gltf.animations.length > 0) {
-            const controller = createAnimationController(
-              THREE,
-              gltf.scene,
-              gltf.animations,
-            );
+        playAnimationRef.current = () => {
+          clockRef.current = new THREE.Clock();
+          controller.play();
+          setAnimationStarted(true);
+        };
+        stopAnimationRef.current = () => {
+          controller.stop();
+          setAnimationStarted(false);
+        };
 
-            if (controller) {
-              setModelStatus(
-                `Model ready — ${gltf.animations.length} clip(s): ${controller.clipSummary}`,
-              );
-              mixerRef.current = controller;
-              clockRef.current = new THREE.Clock();
-
-              playAnimationRef.current = () => {
-                clockRef.current = new THREE.Clock();
-                controller.play();
-                setAnimationStarted(true);
-              };
-              stopAnimationRef.current = () => {
-                controller.stop();
-                setAnimationStarted(false);
-              };
-            }
-          } else {
-            setModelStatus(
-              "Model ready — no baked clips, spinning wheel parts instead",
-            );
-            spinTargetsRef.current = findSpinTargets(gltf.scene);
-
-            playAnimationRef.current = () => {
-              isSpinningRef.current = true;
-              setAnimationStarted(true);
-            };
-            stopAnimationRef.current = () => {
-              isSpinningRef.current = false;
-              setAnimationStarted(false);
-            };
-          }
-
-          if (markerVisibleRef.current) {
-            playAnimationRef.current?.();
-          }
-        },
-        undefined,
-        (err) => {
-          console.error("GLB load failed:", err);
-          setError("Failed to load 3D model.");
-          setStatus("error");
-        },
-      );
+        if (markerVisibleRef.current) {
+          playAnimationRef.current();
+        }
+      } catch (err) {
+        console.error("GIF load failed:", err);
+        setError("Failed to load sticker GIF.");
+        setStatus("error");
+        return;
+      }
 
       await mindarThree.start();
 
@@ -209,12 +167,6 @@ export default function WheelOfFortunePage() {
         const clock = clockRef.current;
         if (controller && clock) {
           controller.update(clock.getDelta());
-        }
-
-        if (isSpinningRef.current) {
-          for (const target of spinTargetsRef.current) {
-            target.rotation.y += SPIN_SPEED;
-          }
         }
 
         renderer.render(scene, camera);
@@ -252,7 +204,7 @@ export default function WheelOfFortunePage() {
         <div className="relative z-10 flex min-h-screen flex-col items-center justify-center gap-6 px-6 text-center">
           <h1 className="text-2xl font-bold">Wheel of Fortune</h1>
           <p className="max-w-sm text-zinc-400">
-            Point your camera at the marker to see the 3D animation.
+            Point your camera at the marker to see the cat sticker.
           </p>
 
           {error && (

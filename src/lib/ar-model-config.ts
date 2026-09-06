@@ -6,7 +6,7 @@ export type ArModelTransform = {
 };
 
 export const DEFAULT_AR_MODEL_TRANSFORM: ArModelTransform = {
-  scale: 50,
+  scale: 1,
   position: { x: 0, y: 0, z: 0 },
   rotation: { x: 0, y: 0, z: 0 },
 };
