@@ -2,8 +2,8 @@
 
 import { applyArModelTransform } from "@/lib/ar-model-config";
 import type { ArModelTransform } from "@/lib/ar-model-config";
-import { loadGifOverlay } from "@/lib/gif-plane";
 import type { TransformableObject } from "@/lib/gif-plane";
+import { loadVideoOverlay } from "@/lib/video-plane";
 import {
   addARLights,
   bindMindARResize,
@@ -70,6 +70,7 @@ export default function ArManagePreview({
         mindarRef.current = null;
       }
 
+      controllerRef.current?.stop();
       modelSceneRef.current = null;
       controllerRef.current = null;
       clockRef.current = null;
@@ -138,17 +139,17 @@ export default function ArManagePreview({
 
         const { renderer, scene, camera } = mindarThree;
         renderer.setAnimationLoop(() => {
-          const gifController = controllerRef.current;
+          const overlayController = controllerRef.current;
           const clock = clockRef.current;
-          if (gifController && clock) {
-            gifController.update(clock.getDelta());
+          if (overlayController && clock) {
+            overlayController.update(clock.getDelta());
           }
           renderer.render(scene, camera);
         });
 
         onStatusChange?.("ready");
 
-        const { object, controller } = await loadGifOverlay(THREE, MODEL);
+        const { object, controller } = await loadVideoOverlay(THREE, MODEL);
         if (disposed) {
           stop();
           return;

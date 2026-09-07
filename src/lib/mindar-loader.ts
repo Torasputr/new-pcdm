@@ -1,6 +1,6 @@
 export const MARKER_TARGET = "/markers/wheeloffortune.mind";
 export const MARKER_IMAGE = "/markers/wheelofortune.jpg";
-export const MODEL = "/models/Cat_Pixel_Sticker.gif";
+export const MODEL = "/models/vid.mp4";
 
 const THREE_URL = "/lib/three.module.js";
 const MINDAR_URL = "/lib/mindar-image-three.prod.js";
@@ -66,6 +66,7 @@ export type ThreeRuntime = {
   MeshBasicMaterial: new (params: object) => object;
   Mesh: new (geometry: object, material: object) => object;
   CanvasTexture: new (canvas: HTMLCanvasElement) => { needsUpdate: boolean };
+  VideoTexture: new (video: HTMLVideoElement) => { needsUpdate: boolean };
 };
 
 export type AnimationActionRuntime = {

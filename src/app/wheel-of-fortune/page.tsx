@@ -4,7 +4,7 @@ import {
   applyArModelTransform,
   fetchArModelTransform,
 } from "@/lib/ar-model-config";
-import { loadGifOverlay } from "@/lib/gif-plane";
+import { loadVideoOverlay } from "@/lib/video-plane";
 import {
   addARLights,
   bindMindARResize,
@@ -60,6 +60,7 @@ export default function WheelOfFortunePage() {
       mindar.stop();
       mindarRef.current = null;
     }
+    mixerRef.current?.stop();
     mixerRef.current = null;
     clockRef.current = null;
     markerVisibleRef.current = false;
@@ -152,12 +153,12 @@ export default function WheelOfFortunePage() {
       });
 
       setStatus("scanning");
-      setModelStatus("Loading sticker…");
+      setModelStatus("Loading video…");
 
       try {
         const [modelTransform, overlay] = await Promise.all([
           fetchArModelTransform(),
-          loadGifOverlay(THREE, MODEL),
+          loadVideoOverlay(THREE, MODEL),
         ]);
         if (mindarRef.current !== mindarThree) return;
 
@@ -187,8 +188,8 @@ export default function WheelOfFortunePage() {
           playAnimationRef.current();
         }
       } catch (err) {
-        console.error("GIF load failed:", err);
-        setModelStatus("Camera is on, but the sticker failed to load.");
+        console.error("Video load failed:", err);
+        setModelStatus("Camera is on, but the video failed to load.");
       }
     } catch (err) {
       console.error(err);
@@ -221,8 +222,8 @@ export default function WheelOfFortunePage() {
         <div className="relative z-10 flex min-h-screen flex-col items-center justify-center gap-6 px-6 text-center">
           <h1 className="text-2xl font-bold">Wheel of Fortune</h1>
           <p className="max-w-sm text-zinc-400">
-            Point your camera at the wheel of fortune marker below — not the cat
-            sticker. The cat appears after the marker is found.
+            Point your camera at the wheel of fortune marker below. The video
+            appears after the marker is found.
           </p>
 
           <img
