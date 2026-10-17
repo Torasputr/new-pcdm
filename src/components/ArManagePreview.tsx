@@ -3,14 +3,13 @@
 import { applyArModelTransform } from "@/lib/ar-model-config";
 import type { ArModelTransform } from "@/lib/ar-model-config";
 import type { TransformableObject } from "@/lib/gif-plane";
-import { loadVideoOverlay } from "@/lib/video-plane";
+import { loadPngSequenceOverlay } from "@/lib/png-sequence-plane";
 import {
   addARLights,
   bindMindARResize,
   loadMindARModules,
   loadThreeAndGLTF,
   MARKER_TARGET,
-  MODEL,
 } from "@/lib/mindar-loader";
 import type {
   AnimationController,
@@ -149,7 +148,7 @@ export default function ArManagePreview({
 
         onStatusChange?.("ready");
 
-        const { object, controller } = await loadVideoOverlay(THREE, MODEL);
+        const { object, controller } = await loadPngSequenceOverlay(THREE);
         if (disposed) {
           stop();
           return;

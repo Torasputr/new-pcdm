@@ -4,7 +4,7 @@ import {
   applyArModelTransform,
   fetchArModelTransform,
 } from "@/lib/ar-model-config";
-import { loadVideoOverlay } from "@/lib/video-plane";
+import { loadPngSequenceOverlay } from "@/lib/png-sequence-plane";
 import {
   addARLights,
   bindMindARResize,
@@ -12,7 +12,6 @@ import {
   loadThreeAndGLTF,
   MARKER_IMAGE,
   MARKER_TARGET,
-  MODEL,
 } from "@/lib/mindar-loader";
 import type {
   AnimationController,
@@ -153,12 +152,12 @@ export default function WheelOfFortunePage() {
       });
 
       setStatus("scanning");
-      setModelStatus("Loading video…");
+      setModelStatus("Loading PNG sequence…");
 
       try {
         const [modelTransform, overlay] = await Promise.all([
           fetchArModelTransform(),
-          loadVideoOverlay(THREE, MODEL),
+          loadPngSequenceOverlay(THREE),
         ]);
         if (mindarRef.current !== mindarThree) return;
 
@@ -188,8 +187,8 @@ export default function WheelOfFortunePage() {
           playAnimationRef.current();
         }
       } catch (err) {
-        console.error("Video load failed:", err);
-        setModelStatus("Camera is on, but the video failed to load.");
+        console.error("PNG sequence load failed:", err);
+        setModelStatus("Camera is on, but the PNG sequence failed to load.");
       }
     } catch (err) {
       console.error(err);
@@ -222,8 +221,8 @@ export default function WheelOfFortunePage() {
         <div className="relative z-10 flex min-h-screen flex-col items-center justify-center gap-6 px-6 text-center">
           <h1 className="text-2xl font-bold">Wheel of Fortune</h1>
           <p className="max-w-sm text-zinc-400">
-            Point your camera at the wheel of fortune marker below. The video
-            appears after the marker is found.
+            Point your camera at the wheel of fortune marker below. The
+            animation appears after the marker is found.
           </p>
 
           <img
