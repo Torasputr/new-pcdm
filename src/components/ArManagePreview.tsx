@@ -7,12 +7,16 @@ import { loadPngSequenceOverlay } from "@/lib/png-sequence-plane";
 import {
   addARLights,
   bindMindARResize,
+  combineAnimationControllers,
+  GLB_MODEL,
+  loadGlbOverlay,
   loadMindARModules,
   loadThreeAndGLTF,
   MARKER_TARGET,
 } from "@/lib/mindar-loader";
 import type {
   AnimationController,
+  GLTFResult,
   MindARThreeInstance,
 } from "@/lib/mindar-loader";
 import { useEffect, useRef, useState } from "react";
@@ -33,7 +37,8 @@ export default function ArManagePreview({
 }: ArManagePreviewProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const mindarRef = useRef<MindARThreeInstance | null>(null);
-  const modelSceneRef = useRef<TransformableObject | null>(null);
+  const pngSceneRef = useRef<TransformableObject | null>(null);
+  const glbSceneRef = useRef<GLTFResult["scene"] | null>(null);
   const transformRef = useRef(transform);
   const controllerRef = useRef<AnimationController | null>(null);
   const clockRef = useRef<{ getDelta: () => number } | null>(null);
@@ -44,8 +49,16 @@ export default function ArManagePreview({
   transformRef.current = transform;
 
   useEffect(() => {
-    if (modelSceneRef.current) {
-      applyArModelTransform(modelSceneRef.current, transform);
+    if (pngSceneRef.current) {
+      applyArModelTransform(pngSceneRef.current, transform);
+      pngSceneRef.current.position.set(
+        transform.position.x,
+        transform.position.y,
+        transform.position.z + 0.02,
+      );
+    }
+    if (glbSceneRef.current) {
+      applyArModelTransform(glbSceneRef.current, transform.glb);
     }
   }, [transform]);
 
@@ -70,7 +83,8 @@ export default function ArManagePreview({
       }
 
       controllerRef.current?.stop();
-      modelSceneRef.current = null;
+      pngSceneRef.current = null;
+      glbSceneRef.current = null;
       controllerRef.current = null;
       clockRef.current = null;
       markerVisibleRef.current = false;
@@ -88,7 +102,7 @@ export default function ArManagePreview({
       try {
         document.documentElement.classList.add("ar-active");
 
-        const [{ MindARThree }, { THREE }] = await Promise.all([
+        const [{ MindARThree }, { THREE, GLTFLoader }] = await Promise.all([
           loadMindARModules(),
           loadThreeAndGLTF(),
         ]);
@@ -148,31 +162,43 @@ export default function ArManagePreview({
 
         onStatusChange?.("ready");
 
-        const { object, controller } = await loadPngSequenceOverlay(THREE);
+        const [pngOverlay, glbOverlay] = await Promise.all([
+          loadPngSequenceOverlay(THREE),
+          loadGlbOverlay(THREE, GLTFLoader, GLB_MODEL),
+        ]);
         if (disposed) {
           stop();
           return;
         }
 
-        applyArModelTransform(object, transformRef.current);
-        object.position.set(
+        applyArModelTransform(pngOverlay.object, transformRef.current);
+        pngOverlay.object.position.set(
           transformRef.current.position.x,
           transformRef.current.position.y,
           transformRef.current.position.z + 0.02,
         );
-        modelSceneRef.current = object;
-        anchor.group.add(object);
-        controllerRef.current = controller;
+        pngSceneRef.current = pngOverlay.object;
+        anchor.group.add(pngOverlay.object);
+
+        applyArModelTransform(glbOverlay.scene, transformRef.current.glb);
+        glbSceneRef.current = glbOverlay.scene;
+        anchor.group.add(glbOverlay.scene);
+
+        const combined = combineAnimationControllers([
+          pngOverlay.controller,
+          glbOverlay.controller,
+        ]);
+        controllerRef.current = combined;
         clockRef.current = new THREE.Clock();
         if (markerVisibleRef.current) {
-          controller.play();
+          combined.play();
         }
       } catch (err) {
         console.error(err);
         stop();
         onStatusChange?.(
           "error",
-          "Could not start camera or load sticker. Allow access and try again.",
+          "Could not start camera or load AR assets. Allow access and try again.",
         );
       }
     };

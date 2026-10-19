@@ -1,14 +1,29 @@
-export type ArModelTransform = {
+export type SingleTransform = {
   scale: number;
   position: { x: number; y: number; z: number };
   /** Euler rotation in degrees. */
   rotation: { x: number; y: number; z: number };
 };
 
-export const DEFAULT_AR_MODEL_TRANSFORM: ArModelTransform = {
+export type ArModelTransform = SingleTransform & {
+  glb: SingleTransform;
+};
+
+export const DEFAULT_SINGLE_TRANSFORM: SingleTransform = {
   scale: 1,
   position: { x: 0, y: 0, z: 0 },
   rotation: { x: 0, y: 0, z: 0 },
+};
+
+export const DEFAULT_GLB_TRANSFORM: SingleTransform = {
+  scale: 1,
+  position: { x: 0, y: 0, z: 0 },
+  rotation: { x: 0, y: 0, z: 0 },
+};
+
+export const DEFAULT_AR_MODEL_TRANSFORM: ArModelTransform = {
+  ...DEFAULT_SINGLE_TRANSFORM,
+  glb: DEFAULT_GLB_TRANSFORM,
 };
 
 export const AR_MODEL_CONFIG_API = "/api/ar-model-config";
@@ -32,19 +47,29 @@ function saveToStorage(transform: ArModelTransform): void {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(transform));
 }
 
+function mergeSingleTransform(
+  partial: Partial<SingleTransform> | undefined,
+  fallback: SingleTransform,
+): SingleTransform {
+  return {
+    scale: partial?.scale ?? fallback.scale,
+    position: {
+      ...fallback.position,
+      ...partial?.position,
+    },
+    rotation: {
+      ...fallback.rotation,
+      ...partial?.rotation,
+    },
+  };
+}
+
 export function mergeArModelTransform(
   partial: Partial<ArModelTransform>,
 ): ArModelTransform {
   return {
-    scale: partial.scale ?? DEFAULT_AR_MODEL_TRANSFORM.scale,
-    position: {
-      ...DEFAULT_AR_MODEL_TRANSFORM.position,
-      ...partial.position,
-    },
-    rotation: {
-      ...DEFAULT_AR_MODEL_TRANSFORM.rotation,
-      ...partial.rotation,
-    },
+    ...mergeSingleTransform(partial, DEFAULT_SINGLE_TRANSFORM),
+    glb: mergeSingleTransform(partial.glb, DEFAULT_GLB_TRANSFORM),
   };
 }
 
@@ -112,7 +137,7 @@ export function applyArModelTransform(
     position: { set: (x: number, y: number, z: number) => void };
     rotation: { set: (x: number, y: number, z: number) => void };
   },
-  transform: ArModelTransform,
+  transform: SingleTransform,
 ): void {
   const deg = Math.PI / 180;
   scene.scale.set(transform.scale, transform.scale, transform.scale);

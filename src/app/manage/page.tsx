@@ -13,11 +13,13 @@ import { useCallback, useEffect, useState, type ReactNode } from "react";
 
 type Axis = "x" | "y" | "z";
 type CameraStatus = "idle" | "loading" | "ready" | "error";
+type ActiveLayer = "pngseq" | "glb";
 
 export default function ManagePage() {
   const [transform, setTransform] = useState<ArModelTransform>(
     DEFAULT_AR_MODEL_TRANSFORM,
   );
+  const [activeLayer, setActiveLayer] = useState<ActiveLayer>("pngseq");
   const [savedMessage, setSavedMessage] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
   const [scriptsReady, setScriptsReady] = useState(false);
@@ -45,22 +47,48 @@ export default function ManagePage() {
     [],
   );
 
+  const activeTransform = activeLayer === "glb" ? transform.glb : transform;
+
   const updateScale = (scale: number) => {
-    setTransform((current) => ({ ...current, scale }));
+    setTransform((current) =>
+      activeLayer === "glb"
+        ? { ...current, glb: { ...current.glb, scale } }
+        : { ...current, scale },
+    );
   };
 
   const updatePosition = (axis: Axis, value: number) => {
-    setTransform((current) => ({
-      ...current,
-      position: { ...current.position, [axis]: value },
-    }));
+    setTransform((current) =>
+      activeLayer === "glb"
+        ? {
+            ...current,
+            glb: {
+              ...current.glb,
+              position: { ...current.glb.position, [axis]: value },
+            },
+          }
+        : {
+            ...current,
+            position: { ...current.position, [axis]: value },
+          },
+    );
   };
 
   const updateRotation = (axis: Axis, value: number) => {
-    setTransform((current) => ({
-      ...current,
-      rotation: { ...current.rotation, [axis]: value },
-    }));
+    setTransform((current) =>
+      activeLayer === "glb"
+        ? {
+            ...current,
+            glb: {
+              ...current.glb,
+              rotation: { ...current.glb.rotation, [axis]: value },
+            },
+          }
+        : {
+            ...current,
+            rotation: { ...current.rotation, [axis]: value },
+          },
+    );
   };
 
   const handleSave = async () => {
@@ -179,8 +207,9 @@ export default function ManagePage() {
       >
         {!cameraActive && (
           <p className="mb-6 max-w-xl text-zinc-400">
-            Open the AR camera and point at your marker. Use the sliders to
-            adjust size and placement in real time, then save.
+            Open the AR camera and point at your marker. Switch between the PNG
+            Sequence and 3D Model (Loop.glb) tabs to adjust each layer in real
+            time, then save.
           </p>
         )}
 
@@ -191,9 +220,34 @@ export default function ManagePage() {
         )}
 
         <div className={`space-y-6 ${cameraActive ? "" : "max-w-xl"}`}>
+          <div className="grid grid-cols-2 gap-2 rounded-xl border border-zinc-800 bg-zinc-900 p-1">
+            <button
+              type="button"
+              onClick={() => setActiveLayer("pngseq")}
+              className={`rounded-lg px-4 py-2 text-sm font-semibold transition ${
+                activeLayer === "pngseq"
+                  ? "bg-emerald-500 text-zinc-950"
+                  : "text-zinc-400 hover:text-white"
+              }`}
+            >
+              PNG Sequence
+            </button>
+            <button
+              type="button"
+              onClick={() => setActiveLayer("glb")}
+              className={`rounded-lg px-4 py-2 text-sm font-semibold transition ${
+                activeLayer === "glb"
+                  ? "bg-emerald-500 text-zinc-950"
+                  : "text-zinc-400 hover:text-white"
+              }`}
+            >
+              3D Model (Loop.glb)
+            </button>
+          </div>
+
           <SliderField
             label="Scale"
-            value={transform.scale}
+            value={activeTransform.scale}
             min={0.1}
             max={50}
             step={0.1}
@@ -203,7 +257,7 @@ export default function ManagePage() {
           <FieldGroup title="Position">
             <SliderField
               label="X"
-              value={transform.position.x}
+              value={activeTransform.position.x}
               min={-5}
               max={5}
               step={0.01}
@@ -211,7 +265,7 @@ export default function ManagePage() {
             />
             <SliderField
               label="Y"
-              value={transform.position.y}
+              value={activeTransform.position.y}
               min={-5}
               max={5}
               step={0.01}
@@ -219,7 +273,7 @@ export default function ManagePage() {
             />
             <SliderField
               label="Z"
-              value={transform.position.z}
+              value={activeTransform.position.z}
               min={-5}
               max={5}
               step={0.01}
@@ -230,7 +284,7 @@ export default function ManagePage() {
           <FieldGroup title="Rotation (degrees)">
             <SliderField
               label="X"
-              value={transform.rotation.x}
+              value={activeTransform.rotation.x}
               min={-180}
               max={180}
               step={1}
@@ -238,7 +292,7 @@ export default function ManagePage() {
             />
             <SliderField
               label="Y"
-              value={transform.rotation.y}
+              value={activeTransform.rotation.y}
               min={-180}
               max={180}
               step={1}
@@ -246,7 +300,7 @@ export default function ManagePage() {
             />
             <SliderField
               label="Z"
-              value={transform.rotation.z}
+              value={activeTransform.rotation.z}
               min={-180}
               max={180}
               step={1}

@@ -1,6 +1,7 @@
 export const MARKER_TARGET = "/markers/wheeloffortune.mind";
 export const MARKER_IMAGE = "/markers/wheelofortune.jpg";
 export const MODEL = "/models/vid.mp4";
+export const GLB_MODEL = "/models/Loop.glb";
 
 const THREE_URL = "/lib/three.module.js";
 const MINDAR_URL = "/lib/mindar-image-three.prod.js";
@@ -193,6 +194,74 @@ export async function loadThreeAndGLTF(): Promise<{
   )) as { GLTFLoader: GLTFLoaderRuntime };
 
   return { THREE, GLTFLoader };
+}
+
+export function combineAnimationControllers(
+  controllers: (AnimationController | null | undefined)[],
+): AnimationController {
+  const valid = controllers.filter(
+    (c): c is AnimationController => Boolean(c),
+  );
+  return {
+    clipSummary: valid.map((c) => c.clipSummary).join(" + ") || "none",
+    play() {
+      for (const c of valid) c.play();
+    },
+    stop() {
+      for (const c of valid) c.stop();
+    },
+    update(dt: number) {
+      for (const c of valid) c.update(dt);
+    },
+  };
+}
+
+export function loadGlbOverlay(
+  THREE: ThreeRuntime,
+  GLTFLoader: GLTFLoaderRuntime,
+  url: string = GLB_MODEL,
+): Promise<{ scene: GLTFResult["scene"]; controller: AnimationController }> {
+  return new Promise((resolve, reject) => {
+    const loader = new GLTFLoader();
+    loader.load(
+      url,
+      (gltf) => {
+        brightenModelMaterials(gltf.scene);
+        const clipController = createAnimationController(
+          THREE,
+          gltf.scene,
+          gltf.animations,
+        );
+        if (clipController) {
+          resolve({ scene: gltf.scene, controller: clipController });
+          return;
+        }
+
+        const spinTargets = findSpinTargets(gltf.scene);
+        let spinning = false;
+        resolve({
+          scene: gltf.scene,
+          controller: {
+            clipSummary: "3D model",
+            play() {
+              spinning = true;
+            },
+            stop() {
+              spinning = false;
+            },
+            update(dt: number) {
+              if (!spinning) return;
+              for (const target of spinTargets) {
+                target.rotation.y += dt * 1.2;
+              }
+            },
+          },
+        });
+      },
+      undefined,
+      (err) => reject(err),
+    );
+  });
 }
 
 /** Makes PBR materials visible in AR (fixes all-black models). */

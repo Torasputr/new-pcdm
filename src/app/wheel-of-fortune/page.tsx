@@ -8,6 +8,9 @@ import { loadPngSequenceOverlay } from "@/lib/png-sequence-plane";
 import {
   addARLights,
   bindMindARResize,
+  combineAnimationControllers,
+  GLB_MODEL,
+  loadGlbOverlay,
   loadMindARModules,
   loadThreeAndGLTF,
   MARKER_IMAGE,
@@ -96,7 +99,7 @@ export default function WheelOfFortunePage() {
     }
 
     try {
-      const [{ MindARThree }, { THREE }] = await Promise.all([
+      const [{ MindARThree }, { THREE, GLTFLoader }] = await Promise.all([
         loadMindARModules(),
         loadThreeAndGLTF(),
       ]);
@@ -152,34 +155,43 @@ export default function WheelOfFortunePage() {
       });
 
       setStatus("scanning");
-      setModelStatus("Loading PNG sequence…");
+      setModelStatus("Loading PNG sequence + 3D model…");
 
       try {
-        const [modelTransform, overlay] = await Promise.all([
+        const [modelTransform, pngOverlay, glbOverlay] = await Promise.all([
           fetchArModelTransform(),
           loadPngSequenceOverlay(THREE),
+          loadGlbOverlay(THREE, GLTFLoader, GLB_MODEL),
         ]);
         if (mindarRef.current !== mindarThree) return;
 
-        applyArModelTransform(overlay.object, modelTransform);
-        overlay.object.position.set(
+        applyArModelTransform(pngOverlay.object, modelTransform);
+        pngOverlay.object.position.set(
           modelTransform.position.x,
           modelTransform.position.y,
           modelTransform.position.z + 0.02,
         );
-        anchor.group.add(overlay.object);
+        anchor.group.add(pngOverlay.object);
 
-        setModelStatus(`Sticker ready — ${overlay.controller.clipSummary}`);
-        mixerRef.current = overlay.controller;
+        applyArModelTransform(glbOverlay.scene, modelTransform.glb);
+        anchor.group.add(glbOverlay.scene);
+
+        const combinedController = combineAnimationControllers([
+          pngOverlay.controller,
+          glbOverlay.controller,
+        ]);
+
+        setModelStatus(`Ready — ${combinedController.clipSummary}`);
+        mixerRef.current = combinedController;
         clockRef.current = new THREE.Clock();
 
         playAnimationRef.current = () => {
           clockRef.current = new THREE.Clock();
-          overlay.controller.play();
+          combinedController.play();
           setAnimationStarted(true);
         };
         stopAnimationRef.current = () => {
-          overlay.controller.stop();
+          combinedController.stop();
           setAnimationStarted(false);
         };
 
@@ -187,8 +199,8 @@ export default function WheelOfFortunePage() {
           playAnimationRef.current();
         }
       } catch (err) {
-        console.error("PNG sequence load failed:", err);
-        setModelStatus("Camera is on, but the PNG sequence failed to load.");
+        console.error("AR asset load failed:", err);
+        setModelStatus("Camera is on, but AR assets failed to load.");
       }
     } catch (err) {
       console.error(err);
