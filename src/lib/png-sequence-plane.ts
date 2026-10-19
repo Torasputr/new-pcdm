@@ -1,11 +1,12 @@
 import type { TransformableObject } from "@/lib/gif-plane";
 import type { AnimationController, ThreeRuntime } from "@/lib/mindar-loader";
 
-export const DEFAULT_PNG_SEQUENCE_FPS = 12;
+export const DEFAULT_PNG_SEQUENCE_FPS = 24;
+const MAX_CANVAS_WIDTH = 1280;
 
-const FALLBACK_FRAMES = Array.from({ length: 15 }, (_, index) => {
+const FALLBACK_FRAMES = Array.from({ length: 87 }, (_, index) => {
   const num = String(index + 1).padStart(4, "0");
-  return `/pngseq/${encodeURIComponent(`Sc 2 SH 45 Animasi_${num}.png`)}`;
+  return `/pngseq/${encodeURIComponent(`SC 2 SH 15 Animasi_${num}.png`)}`;
 });
 
 export type PngSequenceOptions = {
@@ -55,13 +56,30 @@ export async function loadPngSequenceOverlay(
     throw new Error("No PNG sequence frames found in /public/pngseq.");
   }
 
-  const images = await Promise.all(urls.map(loadImage));
-  const width = images[0].naturalWidth || images[0].width;
-  const height = images[0].naturalHeight || images[0].height;
+  // Only download & decode each unique URL once in browser memory
+  const uniqueUrlCache = new Map<string, Promise<HTMLImageElement>>();
+  const images = await Promise.all(
+    urls.map((url) => {
+      let promise = uniqueUrlCache.get(url);
+      if (!promise) {
+        promise = loadImage(url);
+        uniqueUrlCache.set(url, promise);
+      }
+      return promise;
+    }),
+  );
 
-  if (!width || !height) {
+  const srcWidth = images[0].naturalWidth || images[0].width;
+  const srcHeight = images[0].naturalHeight || images[0].height;
+
+  if (!srcWidth || !srcHeight) {
     throw new Error("PNG frame has invalid dimensions.");
   }
+
+  const scaleFactor =
+    srcWidth > MAX_CANVAS_WIDTH ? MAX_CANVAS_WIDTH / srcWidth : 1;
+  const width = Math.round(srcWidth * scaleFactor);
+  const height = Math.round(srcHeight * scaleFactor);
 
   const canvas = document.createElement("canvas");
   canvas.width = width;
@@ -74,7 +92,7 @@ export async function loadPngSequenceOverlay(
   const texture = new THREE.CanvasTexture(canvas);
   texture.needsUpdate = true;
 
-  const aspect = height / width;
+  const aspect = srcHeight / srcWidth;
   const geometry = new THREE.PlaneGeometry(1, aspect);
   const material = new THREE.MeshBasicMaterial({
     map: texture,
@@ -90,11 +108,13 @@ export async function loadPngSequenceOverlay(
   let frameIndex = 0;
   let elapsedMs = 0;
   let playing = false;
+  let lastDrawnImage: HTMLImageElement | null = null;
   const frameDurationMs = 1000 / Math.max(1, fps);
 
   const drawFrame = (index: number) => {
     const img = images[index];
-    if (!img) return;
+    if (!img || img === lastDrawnImage) return;
+    lastDrawnImage = img;
     ctx.clearRect(0, 0, width, height);
     ctx.drawImage(img, 0, 0, width, height);
     texture.needsUpdate = true;
@@ -103,13 +123,14 @@ export async function loadPngSequenceOverlay(
   const resetToFirstFrame = () => {
     frameIndex = 0;
     elapsedMs = 0;
+    lastDrawnImage = null;
     drawFrame(0);
   };
 
   resetToFirstFrame();
 
   const controller: AnimationController = {
-    clipSummary: `${images.length} PNG frames (${fps} FPS)`,
+    clipSummary: `${images.length} PNG frames (${uniqueUrlCache.size} unique @ ${fps} FPS)`,
     play() {
       resetToFirstFrame();
       playing = true;
