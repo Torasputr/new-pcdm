@@ -3,9 +3,12 @@ export type SingleTransform = {
   position: { x: number; y: number; z: number };
   /** Euler rotation in degrees. */
   rotation: { x: number; y: number; z: number };
+  /** Draw order relative to GLB internal layers (0 = behind all GLB layers, 1..18 = between GLB layers, 20 = in front of all GLB layers). */
+  layerOrder?: number;
 };
 
 export type ArModelTransform = SingleTransform & {
+  layerOrder: number;
   glb: SingleTransform;
 };
 
@@ -13,6 +16,7 @@ export const DEFAULT_SINGLE_TRANSFORM: SingleTransform = {
   scale: 1,
   position: { x: 0, y: 0, z: 0 },
   rotation: { x: 0, y: 0, z: 0 },
+  layerOrder: 20,
 };
 
 export const DEFAULT_GLB_TRANSFORM: SingleTransform = {
@@ -23,6 +27,7 @@ export const DEFAULT_GLB_TRANSFORM: SingleTransform = {
 
 export const DEFAULT_AR_MODEL_TRANSFORM: ArModelTransform = {
   ...DEFAULT_SINGLE_TRANSFORM,
+  layerOrder: 20,
   glb: DEFAULT_GLB_TRANSFORM,
 };
 
@@ -61,14 +66,19 @@ function mergeSingleTransform(
       ...fallback.rotation,
       ...partial?.rotation,
     },
+    ...(fallback.layerOrder !== undefined || partial?.layerOrder !== undefined
+      ? { layerOrder: partial?.layerOrder ?? fallback.layerOrder ?? 20 }
+      : {}),
   };
 }
 
 export function mergeArModelTransform(
   partial: Partial<ArModelTransform>,
 ): ArModelTransform {
+  const base = mergeSingleTransform(partial, DEFAULT_SINGLE_TRANSFORM);
   return {
-    ...mergeSingleTransform(partial, DEFAULT_SINGLE_TRANSFORM),
+    ...base,
+    layerOrder: base.layerOrder ?? 20,
     glb: mergeSingleTransform(partial.glb, DEFAULT_GLB_TRANSFORM),
   };
 }
@@ -86,7 +96,7 @@ export async function fetchArModelTransform(): Promise<ArModelTransform> {
     console.warn("Could not load AR model config:", error);
   }
 
-  return DEFAULT_AR_MODEL_TRANSFORM;
+  return loadFromStorage() ?? DEFAULT_AR_MODEL_TRANSFORM;
 }
 
 /** Save settings — updates public/config/ar-model.json (local) or Vercel Blob (production). */
@@ -136,6 +146,7 @@ export function applyArModelTransform(
     scale: { set: (x: number, y: number, z: number) => void };
     position: { set: (x: number, y: number, z: number) => void };
     rotation: { set: (x: number, y: number, z: number) => void };
+    renderOrder?: number;
   },
   transform: SingleTransform,
 ): void {
@@ -151,4 +162,7 @@ export function applyArModelTransform(
     transform.rotation.y * deg,
     transform.rotation.z * deg,
   );
+  if (typeof transform.layerOrder === "number") {
+    scene.renderOrder = transform.layerOrder;
+  }
 }

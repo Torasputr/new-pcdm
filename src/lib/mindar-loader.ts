@@ -331,9 +331,7 @@ export function brightenModelMaterials(root: GLTFResult["scene"]): void {
     materials.forEach((mat) => {
       if (!mat) return;
       mat.needsUpdate = true;
-      if (mat.transparent) {
-        mat.depthWrite = false;
-      }
+      mat.depthWrite = false;
       if (typeof mat.metalness === "number") {
         mat.metalness = Math.min(mat.metalness, 0.3);
       }

@@ -57,6 +57,10 @@ export default function ManagePage() {
     );
   };
 
+  const updateLayerOrder = (layerOrder: number) => {
+    setTransform((current) => ({ ...current, layerOrder }));
+  };
+
   const updatePosition = (axis: Axis, value: number) => {
     setTransform((current) =>
       activeLayer === "glb"
@@ -244,6 +248,52 @@ export default function ManagePage() {
               3D Model (Loop.glb)
             </button>
           </div>
+
+          <FieldGroup title="Layering (Urutan Depan / Belakang)">
+            <div className="grid grid-cols-3 gap-2">
+              <button
+                type="button"
+                onClick={() => updateLayerOrder(0)}
+                className={`rounded-lg border px-3 py-2 text-xs font-medium transition ${
+                  transform.layerOrder === 0
+                    ? "border-emerald-500 bg-emerald-500/20 text-emerald-300"
+                    : "border-zinc-700 text-zinc-400 hover:text-white"
+                }`}
+              >
+                PNG di Belakang GLB (0)
+              </button>
+              <button
+                type="button"
+                onClick={() => updateLayerOrder(7)}
+                className={`rounded-lg border px-3 py-2 text-xs font-medium transition ${
+                  transform.layerOrder > 0 && transform.layerOrder < 19
+                    ? "border-emerald-500 bg-emerald-500/20 text-emerald-300"
+                    : "border-zinc-700 text-zinc-400 hover:text-white"
+                }`}
+              >
+                Selipkan di Tengah GLB (1–18)
+              </button>
+              <button
+                type="button"
+                onClick={() => updateLayerOrder(20)}
+                className={`rounded-lg border px-3 py-2 text-xs font-medium transition ${
+                  transform.layerOrder >= 19
+                    ? "border-emerald-500 bg-emerald-500/20 text-emerald-300"
+                    : "border-zinc-700 text-zinc-400 hover:text-white"
+                }`}
+              >
+                PNG di Depan GLB (20)
+              </button>
+            </div>
+            <SliderField
+              label="PNG Layer Order (0 = paling belakang, 1 = di atas BG GLB, 7 = di bawah Petal/Sparkles, 20 = paling depan)"
+              value={transform.layerOrder}
+              min={0}
+              max={20}
+              step={1}
+              onChange={updateLayerOrder}
+            />
+          </FieldGroup>
 
           <SliderField
             label="Scale"
