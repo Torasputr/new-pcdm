@@ -66,6 +66,22 @@ export type ThreeRuntime = {
   PlaneGeometry: new (width: number, height: number) => object;
   MeshBasicMaterial: new (params: object) => object;
   Mesh: new (geometry: object, material: object) => object;
+  Group: new () => GLTFResult["scene"] & { add: (...objects: object[]) => void };
+  Box3: new () => {
+    setFromObject: (obj: object) => {
+      getSize: (target: { x: number; y: number; z: number }) => {
+        x: number;
+        y: number;
+        z: number;
+      };
+      getCenter: (target: { x: number; y: number; z: number }) => {
+        x: number;
+        y: number;
+        z: number;
+      };
+    };
+  };
+  Vector3: new () => { x: number; y: number; z: number };
   CanvasTexture: new (canvas: HTMLCanvasElement) => { needsUpdate: boolean };
   VideoTexture: new (video: HTMLVideoElement) => { needsUpdate: boolean };
 };
@@ -227,20 +243,49 @@ export function loadGlbOverlay(
       url,
       (gltf) => {
         brightenModelMaterials(gltf.scene);
+
+        // Find reference node ("BG" card plane if present, otherwise entire scene)
+        // to normalize raw Blender meter dimensions (e.g. 0.042m) to 1.0 MindAR marker width.
+        (
+          gltf.scene as { updateMatrixWorld?: (force?: boolean) => void }
+        ).updateMatrixWorld?.(true);
+        let referenceObject: object = gltf.scene;
+        gltf.scene.traverse((child) => {
+          const named = child as { name?: string };
+          if (named.name === "BG") {
+            referenceObject = child;
+          }
+        });
+
+        const box = new THREE.Box3().setFromObject(referenceObject);
+        const size = box.getSize(new THREE.Vector3());
+        const center = box.getCenter(new THREE.Vector3());
+        const normScale = size.x > 0.0001 ? 1 / size.x : 1;
+
+        gltf.scene.scale.set(normScale, normScale, normScale);
+        gltf.scene.position.set(
+          -center.x * normScale,
+          -center.y * normScale,
+          -center.z * normScale,
+        );
+
+        const wrapper = new THREE.Group();
+        wrapper.add(gltf.scene);
+
         const clipController = createAnimationController(
           THREE,
           gltf.scene,
           gltf.animations,
         );
         if (clipController) {
-          resolve({ scene: gltf.scene, controller: clipController });
+          resolve({ scene: wrapper, controller: clipController });
           return;
         }
 
         const spinTargets = findSpinTargets(gltf.scene);
         let spinning = false;
         resolve({
-          scene: gltf.scene,
+          scene: wrapper,
           controller: {
             clipSummary: "3D model",
             play() {
@@ -264,14 +309,20 @@ export function loadGlbOverlay(
   });
 }
 
-/** Makes PBR materials visible in AR (fixes all-black models). */
+/** Makes PBR materials visible in AR (fixes all-black models and alpha z-fighting). */
 export function brightenModelMaterials(root: GLTFResult["scene"]): void {
+  let orderIndex = 1;
   root.traverse((child) => {
     const mesh = child as {
       isMesh?: boolean;
+      frustumCulled?: boolean;
+      renderOrder?: number;
       material?: MaterialLike | MaterialLike[];
     };
     if (!mesh.isMesh || !mesh.material) return;
+
+    mesh.frustumCulled = false;
+    mesh.renderOrder = orderIndex++;
 
     const materials = Array.isArray(mesh.material)
       ? mesh.material
@@ -280,6 +331,9 @@ export function brightenModelMaterials(root: GLTFResult["scene"]): void {
     materials.forEach((mat) => {
       if (!mat) return;
       mat.needsUpdate = true;
+      if (mat.transparent) {
+        mat.depthWrite = false;
+      }
       if (typeof mat.metalness === "number") {
         mat.metalness = Math.min(mat.metalness, 0.3);
       }
@@ -295,6 +349,8 @@ export function brightenModelMaterials(root: GLTFResult["scene"]): void {
 
 type MaterialLike = {
   needsUpdate?: boolean;
+  transparent?: boolean;
+  depthWrite?: boolean;
   metalness?: number;
   roughness?: number;
   envMapIntensity?: number;
@@ -341,7 +397,7 @@ export function bindMindARResize(
     window.removeEventListener("resize", resize);
     window.removeEventListener("orientationchange", resize);
     window.visualViewport?.removeEventListener("resize", resize);
-    window.visualViewport?.removeEventListener("scroll", resize);
+    window.visualViewport?.addEventListener("scroll", resize);
     for (const id of retryTimers) {
       window.clearTimeout(id);
     }

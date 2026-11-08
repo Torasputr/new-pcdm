@@ -54,7 +54,7 @@ export default function ArManagePreview({
       pngSceneRef.current.position.set(
         transform.position.x,
         transform.position.y,
-        transform.position.z + 0.02,
+        transform.position.z + 0.06,
       );
     }
     if (glbSceneRef.current) {
@@ -175,7 +175,7 @@ export default function ArManagePreview({
         pngOverlay.object.position.set(
           transformRef.current.position.x,
           transformRef.current.position.y,
-          transformRef.current.position.z + 0.02,
+          transformRef.current.position.z + 0.06,
         );
         pngSceneRef.current = pngOverlay.object;
         anchor.group.add(pngOverlay.object);

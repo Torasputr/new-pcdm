@@ -169,7 +169,7 @@ export default function WheelOfFortunePage() {
         pngOverlay.object.position.set(
           modelTransform.position.x,
           modelTransform.position.y,
-          modelTransform.position.z + 0.02,
+          modelTransform.position.z + 0.06,
         );
         anchor.group.add(pngOverlay.object);
 

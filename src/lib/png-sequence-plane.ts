@@ -103,7 +103,8 @@ export async function loadPngSequenceOverlay(
   const mesh = new THREE.Mesh(
     geometry,
     material,
-  ) as unknown as TransformableObject;
+  ) as unknown as TransformableObject & { renderOrder?: number };
+  mesh.renderOrder = 100;
 
   let frameIndex = 0;
   let elapsedMs = 0;
